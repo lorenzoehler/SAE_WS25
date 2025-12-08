@@ -1,0 +1,24 @@
+library(dplyr)
+library(readr)
+
+geo <- read_csv("variablen.csv") |>
+  mutate(across(everything(), ~ifelse(. == -9999, NA, .)))
+
+# Beispiel: Auswahl von 2015-Kovariaten
+covars_2015 <- geo |>
+  transmute(
+    DHSCLUST,
+    Annual_Precipitation_2015,
+    Aridity_2015,
+    Day_Land_Surface_Temp_2015,
+    Night_Land_Surface_Temp2015,
+    Mean_Temperature_2015,
+    Minimum_Temperature_2015,
+    Maximum_Temperature_2015,
+    Rainfall_2015,
+    Wet_Days_2015,
+    Nightlights_Composite,
+    BUILT_Population_2014,
+    Global_Human_Footprint,
+    Slope
+  )
