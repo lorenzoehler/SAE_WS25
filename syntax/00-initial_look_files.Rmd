@@ -1,0 +1,69 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# shape file
+
+
+```{r}
+library(sf)
+library(tidyverse)
+map <- read_sf("../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp")
+
+map$count <- 1:nrow(map)
+
+ggplot(map) +
+  geom_sf(aes(fill = count), color = "grey20", size = 0.1) +
+  theme_classic()
+```
+
+# DHS data
+
+```{r}
+library(haven)
+dat_houshold_raw <- read_dta("../data_raw/BO_2008_DHS_11182025_929_234442/BOHR51DT/BOHR51FL.DTA")
+
+dat_houshold_raw
+```
+
+# census
+
+```{r}
+# census <- read_csv("../data_raw/large_files/Persona_CPV-2024.csv")
+
+library(data.table)
+head1000 <- fread("../data_raw/large_files/Persona_CPV-2024.csv", nrows = 10000)
+
+
+i00 <- fread("../data_raw/large_files/Persona_CPV-2024.csv", select = c("i00"))
+
+unique(i00) 
+
+
+head1000 %>% filter(p361_anres < 9999) %>% pull(p361_anres) %>% 
+hist(.,breaks = 100)
+```
+
+
+```{r}
+read_csv(file = "../data_raw/codebook/variables-12-09-25-082801.csv")
+read_csv(file = "../data_raw/codebook/variables-12-09-25-082852.csv")
+```
+
+
+
