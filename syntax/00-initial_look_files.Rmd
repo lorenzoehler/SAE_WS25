@@ -47,16 +47,16 @@ dat_houshold_raw
 # census <- read_csv("../data_raw/large_files/Persona_CPV-2024.csv")
 
 library(data.table)
-head1000 <- fread("../data_raw/large_files/Persona_CPV-2024.csv", nrows = 10000)
+head1000_person <- fread("../data_raw/large_files/Persona_CPV-2024.csv", nrows = 10000)
+head1000_houshold <- fread("../data_raw/large_files/Vivienda_CPV-2024.csv", nrows = 10000)
 
+# i00 <- fread("../data_raw/large_files/Persona_CPV-2024.csv", select = c("i00"))
 
-i00 <- fread("../data_raw/large_files/Persona_CPV-2024.csv", select = c("i00"))
+# unique(i00) 
+# 
 
-unique(i00) 
-
-
-head1000 %>% filter(p361_anres < 9999) %>% pull(p361_anres) %>% 
-hist(.,breaks = 100)
+# head1000 %>% filter(p361_anres < 9999) %>% pull(p361_anres) %>% 
+# hist(.,breaks = 100)
 ```
 
 
