@@ -23,7 +23,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(sf)
 library(tidyverse)
-map <- read_sf("../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp")
+map <- read_sf("../../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp")
 
 map$count <- 1:nrow(map)
 

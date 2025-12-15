@@ -1,0 +1,292 @@
+---
+title: "matching"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+## load libraries
+library(tidyverse)
+library(reactable)
+
+```
+
+
+# Introduction
+This document will be my template how to handle not matching Character strings, which should match
+ 
+```{r}
+## load in mapping table
+mp_municip <- readRDS(file = "../../data_raw/mapping/mp_municip.RDS") 
+
+### load shape file
+library(sf)
+map <- read_sf("../../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp")
+```
+
+
+to standardize this:
+
+```{r}
+list_1 <- mp_municip$name %>% as.tibble()
+list_2 <- map$name_3 %>% as.tibble()
+```
+
+# overview for both variable lists
+
+## Variabel 1
+
+```{r}
+head(list_1,50) %>% reactable(.,compact = T,searchable = T)
+```
+
+
+
+
+```{r}
+head(list_2,50) %>% reactable(.,compact = T,searchable = T)
+```
+## compare lengths
+
+```{r}
+## variable 1
+unique(list_1) %>% nrow()
+
+## variable 2
+unique(list_2) %>% nrow()
+```
+
+## check for duplicates
+
+```{r} 
+### duplicats list 1
+list_1_duplicates <- duplicated(list_1) 
+
+##check the sum
+list_1_duplicates %>% sum()
+
+## investigate which are duplicated
+list_1[list_1_duplicates,]
+
+### duplicatse list 2
+list_2_duplicates <- duplicated(list_2) 
+
+##check the sum
+list_2_duplicates %>% sum()
+
+## investigate which are duplicated
+list_2[list_2_duplicates,]
+```
+
+```{r}
+### only use uniques (will do it differently for actual data, because of nested structures (municipalities with same name in different departments))
+list_1 <- list_1$value %>% unique() %>% as.tibble()
+
+list_2 <- list_2$value %>% unique() %>% as.tibble()
+```
+
+i will also add an IDrow for each 
+
+```{r}
+
+```
+
+
+
+# matching
+
+First I will find the perfect matches, the goal here is to find the perfect match in 2 for 1. We will do that Stepwise by increasingly beeing more "lax" when it comes to what counts as a match. 
+
+The data will be provided in a format where in column 1 there will be all the variables from list 1, in the second column their matches from list 2 and in column three the method that found the match
+
+## perfect match 
+
+```{r}
+# Add ID columns
+list_1 <- list_1 %>% mutate(ID_ls_1 = row_number())
+list_2 <- list_2 %>% mutate(ID_ls_2 = row_number())
+
+# Fill matches and method
+dat_matching$list_2[perfect_matches] <- dat_matching$list_1[perfect_matches]
+dat_matching$method[perfect_matches] <- "perfect"
+
+dat_matching <- data.frame("list_1" = list_1$value,
+                       "ID_ls_1" = list_1$ID_ls_1,
+                       "list_2" = NA,
+                       "ID_ls_2" = NA,
+                       "method" = NA,
+                       "list_1_mn" = NA,
+                       "list_2_mn" = NA)
+
+## how many perfect matches
+perfect_matches <- dat_matching$list_1 %in% list_2$value
+sum(perfect_matches)
+
+# Fill matches and method
+dat_matching$list_2[perfect_matches] <- dat_matching$list_1[perfect_matches]
+dat_matching$method[perfect_matches] <- "perfect"
+
+### remove matched ones from lists
+list_1_unmatched <- list_1[!perfect_matches,]
+list_2_unmatched <- list_2[!list_2$value %in% list_1$value,]
+
+```
+
+ 
+
+
+## simplification
+In this section i will put them into a more standardized form
+
+```{r}
+library(dplyr)
+library(stringi)
+
+### add new column to have one which is being standardized and still keep the other
+list_1_unmatched <- list_1_unmatched %>% 
+  mutate(
+    value_norm = tolower(value) %>% stri_trans_general("Latin-ASCII") %>% gsub("[[:punct:]]", "", .))
+
+list_2_unmatched <- list_2_unmatched %>% 
+  mutate(
+    value_norm = tolower(value) %>% stri_trans_general("Latin-ASCII") %>% gsub("[[:punct:]]", "", .))
+
+
+#### how many perfect matches
+matches <- list_1_unmatched$value_norm %in% list_2_unmatched$value_norm
+sum(matches)
+
+matched_idx <- match(list_1_unmatched$value_norm, list_2_unmatched$value_norm)
+
+### this is the variables 1 of the data frame, where matches were found
+dat_matching$list_2[list_1_unmatched$ID_ls_1[matches]] <- list_2_unmatched$value[matched_idx[matches]]
+dat_matching$list_2_mn[list_1_unmatched$ID_ls_1[matches]] <- list_2_unmatched$value_norm[matched_idx[matches]]
+dat_matching$ID_ls_2[list_1_unmatched$ID_ls_1[matches]] <- list_2_unmatched$ID_ls_2[matched_idx[matches]]
+
+# mark method
+dat_matching$method[list_1_unmatched$ID_ls_1[matches]] <- "no_specials"
+
+list_1_unmatched <- list_1_unmatched[!matches,]
+list_2_unmatched <- list_2_unmatched[!list_2_unmatched$value_norm %in% list_1_unmatched$value_norm,]
+
+```
+
+## fuzzy matching
+
+```{r}
+library(dplyr)
+library(stringdist)
+
+# distance matrix on normalized values
+dist_mat <- stringdistmatrix(
+  list_1_unmatched$value_norm,
+  list_2_unmatched$value_norm,
+  method = "lv"
+)
+
+threshold <- 3  # your high-confidence threshold
+
+# convert to long table
+fuzzy_long <- as.data.frame(as.table(dist_mat)) %>%
+  rename(
+    idx_1 = Var1,
+    idx_2 = Var2,
+    distance = Freq
+  ) %>%
+  mutate(
+    ID_ls_1 = list_1_unmatched$ID_ls_1[idx_1],
+    list_1  = list_1_unmatched$value[idx_1],
+    ID_ls_2 = list_2_unmatched$ID_ls_2[idx_2],
+    list_2  = list_2_unmatched$value[idx_2],
+    method  = "fuzzy"
+  )
+
+# 1. best match per ID_ls_1
+best_match <- fuzzy_long %>%
+  group_by(ID_ls_1) %>%
+  slice_min(distance, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+# 2. all matches within threshold
+threshold_matches <- fuzzy_long %>%
+  filter(distance <= threshold)
+
+# 3. combine them, remove duplicates (keep best automatically)
+fuzzy_candidates <- bind_rows(best_match, threshold_matches) %>%
+  distinct(ID_ls_1, ID_ls_2, .keep_all = TRUE) %>%
+  arrange(ID_ls_1, distance)
+
+
+export_df <- fuzzy_candidates %>%
+  mutate(include_ = NA)
+
+
+wb <- createWorkbook()
+addWorksheet(wb, "matching")
+
+writeData(wb, "matching", export_df)
+
+green_style <- createStyle(bgFill = "#C6EFCE")
+
+include_col <- which(names(export_df) == "include_")
+stopifnot(length(include_col) == 1)
+
+n_rows <- nrow(export_df)
+n_cols <- ncol(export_df)
+
+conditionalFormatting(
+  wb,
+  sheet = "matching",
+  cols = 1:n_cols,
+  rows = 2:(n_rows + 1),
+  type = "expression",
+  rule = paste0("$", int2col(include_col), "2=1"),
+  style = green_style
+)
+
+saveWorkbook(
+  wb,
+  "../../data_raw/mapping/matching_review.xlsx",
+  overwrite = TRUE
+)
+
+```
+
+```{r}
+### load after looking through it 
+matching_review <- read.xlsx("../../data_raw/mapping/matching_review.xlsx")
+```
+
+```{r}
+matching_review
+```
+
+
+```{r}
+
+
+# For example
+download.file(
+  "https://biogeo.ucdavis.edu/data/gadm3.6/shp/gadm36_BOL_shp.zip",
+  destfile = "gadm36_BOL_shp.zip"
+)
+
+
+bolivia_mun <- st_read("../../data_raw/shape/bol_adm_mdrt_2013/bol_admbnd_adm3_mdrt_2013_v01.shp")
+```
+
+We should use this shape file and the ADM3_PCODE as a merg idx
