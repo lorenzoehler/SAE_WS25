@@ -1,0 +1,99 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# shape file
+
+
+```{r}
+library(sf)
+library(tidyverse)
+map <- read_sf("../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp")
+
+map$count <- 1:nrow(map)
+
+ggplot(map) +
+  geom_sf(aes(fill = count), color = "grey20", size = 0.1) +
+  theme_classic()
+
+```
+
+# DHS data
+
+```{r}
+library(haven)
+dat_houshold_raw <- read_dta("../data_raw/BO_2008_DHS_11182025_929_234442/BOHR51DT/BOHR51FL.DTA")
+
+dat_houshold_raw
+```
+
+# census
+
+```{r}
+# census <- read_csv("../data_raw/large_files/Persona_CPV-2024.csv")
+
+library(data.table)
+head1000_person <- fread("../data_raw/large_files/Persona_CPV-2024.csv", nrows = 10000)
+head1000_houshold <- fread("../data_raw/large_files/Vivienda_CPV-2024.csv", nrows = 10000)
+
+# i00 <- fread("../data_raw/large_files/Persona_CPV-2024.csv", select = c("i00"))
+
+# unique(i00) 
+# 
+
+# head1000 %>% filter(p361_anres < 9999) %>% pull(p361_anres) %>% 
+# hist(.,breaks = 100)
+```
+
+
+```{r}
+read_csv(file = "../data_raw/codebook/variables-12-09-25-082801.csv")
+read_csv(file = "../data_raw/codebook/variables-12-09-25-082852.csv")
+```
+
+# Microcesnus 2021
+
+```{r}
+library(haven)
+
+head1000_EH_person <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav")
+
+var_labels <- sapply(head1000_EH_person, attr, "label")
+var_labels %>% unlist()
+dat_EV <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav")
+
+```
+
+```{r}
+head1000_EH_person <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav")
+
+dat_EV <- read_sav(
+  "/Users/lorenzoehler/Documents/GitHub/SAE_WS25/data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav",
+  encoding = "latin1"
+)
+
+lapply(dat_EV,FUN = summary)
+
+```
+
+
+
+
+
+
+

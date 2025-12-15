@@ -1,7 +1,0 @@
-﻿survey_idno,sid,file_id,vid,name,labl,var_intrvl,var_dcml,var_wgt,var_start_pos,var_end_pos,var_width,var_imputation,var_security,var_respunit,var_qstn_preqtxt,var_qstn_qstnlit,var_qstn_postqtxt,var_qstn_ivulnstr,var_universe,var_sumstat,var_txt,var_catgry,var_codinstr,var_concept,var_format,var_notes
-BOL-INE-CPV-2024,132,F15,V740,IMUN,Municipio,discrete,,,,,2,,"Uso público.",,,,,,,,"Corresponde al código que identfica al municipio o territorio indígena originario campesino donde se llenó el cuestionario censal. EL municipio/TIOC es un espacio geográfico y son unidades territoriales básicas del Estado boliviano. Bolivia cuenta con trescientos cuarenta y tres (343) municipios/TIOCs:
-
-- El municipio es la unidad administrativa y política básica del país, conformada por una o varias comunidades y/o centros poblados. Bolivia cuenta con trecientos treinta y cinco (335) municipios en el país.
-- El TIOC es un espacio geográfico, donde una o varias naciones o pueblos indígenas ejercen su autogobierno y su derecho a la libre determinación. Bolivia cuenta con ocho (8) TIOCs.
-
-Código al cual corresponde el municipio o territorio indígena originario campesino de residencia de la persona informante, dentro de cada provincia.",,,,numeric,
