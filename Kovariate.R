@@ -11,11 +11,13 @@ library(sae)
 library(janitor)
 
 # STEP 1: Datenpfade setzen
-setwd("D:/projekte/dhs_bolivia_fh")   # <- Pfad anpassen
-path_geo_vars <- "data/BOGC52FL.csv"          # Geo-Hilfsvariablen
+# setwd("D:/projekte/dhs_bolivia_fh")   # <- Pfad anpassen
+# path_geo_vars <- "data/BOGC52FL.csv"          # Geo-Hilfsvariablen
+path_geo_vars <- "data_raw/BO_2008_DHS_11182025_929_234442/BOGC52FL/BOGC52FL.csv"          # Geo-Hilfsvariablen
 path_admin3   <- "data/BOL_admin_L3.shp"      # Admin Level 3 Grenzen
 path_clusters <- "data/DHS_clusters_BO2008.csv" # DHS Cluster-Koordinaten
 path_dhs      <- "data/BO2008_DHS_microdata.csv" # DHS Mikrodaten
+
 
 # STEP 2: Indikator definieren
 indicator_var <- "poor"    # binär 0/1 (z.B. Armutsindikator)

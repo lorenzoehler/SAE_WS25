@@ -65,5 +65,11 @@ read_csv(file = "../data_raw/codebook/variables-12-09-25-082801.csv")
 read_csv(file = "../data_raw/codebook/variables-12-09-25-082852.csv")
 ```
 
+# Mmicrocesnus 2021
+
+```{r}
+head1000_person <- fread("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/", nrows = 10000)
+```
+
 
 
