@@ -71,12 +71,31 @@ read_csv(file = "../data_raw/codebook/variables-12-09-25-082852.csv")
 ```{r}
 library(haven)
 
-head1000_EH_person <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav", n_max = 1000)
+head1000_EH_person <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav")
 
 var_labels <- sapply(head1000_EH_person, attr, "label")
 
 var_labels %>% unlist()
+
+dat_EV <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav")
+
 ```
+
+```{r}
+head1000_EH_person <- read_sav("../data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav")
+
+dat_EV <- read_sav(
+  "/Users/lorenzoehler/Documents/GitHub/SAE_WS25/data_raw/2021_Encuesta_de_hogares_2021_Microcensus/EH2021_Vivienda.sav",
+  encoding = "latin1"
+)
+
+
+
+```
+
+
+
+
 
 
 
