@@ -79,18 +79,25 @@ dat_person_raw$ADM3_PCODE <- paste0("BO",
   sprintf("%02d",dat_person_raw$imun)
   )
 
-dat <- dat_person_raw %>% group_by(ADM3_PCODE) %>% summarise(mean_years_of_education = mean(aestudio, na.rm = T))
+dat_person_raw$p26_edad <- dat_person_raw$p26_edad %>% as.numeric()
 
+dat_person_raw %>% filter(p26_edad > 18) %>% 
+  pull(aestudio) %>% 
+  hist(., main = "Anzahl der Schuljahr für Personen über 18")
+
+dat <- dat_person_raw %>% filter(p26_edad > 18) %>%  group_by(ADM3_PCODE) %>% summarise(mean_years_of_education = mean(aestudio, na.rm = T))
+```
+
+
+```{r}
 map <- merge(map,dat,by = "ADM3_PCODE")
-
-hist(dat_person_raw$aestudio)
 
 ggplot(map) +
   geom_sf(aes(fill = mean_years_of_education), color = "grey20", size = 0.1) +
   theme_classic() +
   ggtitle("average years of education")
 
-
+nrow(dat_housholdsurvey_person)
 ```
 
 # houshold survey
@@ -104,7 +111,6 @@ dat_housholdsurvey_person$yhog %>%
        main = "Monthly Household Income", 
        xlab = "Income (Bs/Month)")
 
-dat <- 
 
 ```
 
