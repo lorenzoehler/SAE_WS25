@@ -1,0 +1,36 @@
+---
+title: "overview"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(haven)
+library(tidyverse)
+library(reactable)
+library(sf)
+library(data.table)
+```
+
+```{r}
+dat_person_raw <- fread("../../data_raw/large_files/Persona_CPV-2024.csv")
+```
+
+
+```{r}
+dat_person_raw %>% group_by(i00) %>% count()
+```
+

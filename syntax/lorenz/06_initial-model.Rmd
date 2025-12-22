@@ -1,0 +1,20 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+

@@ -28,17 +28,40 @@ library(data.table)
 
 ```{r}
 dat_person_raw <- fread("../../data_raw/large_files/Persona_CPV-2024.csv")
+dat_houshold_raw <- fread("../../data_raw/large_files/Vivienda_CPV-2024.csv")
 ```
 
 
 ```{r}
 set.seed(420)
 
+n_size_simulation <- 10
+
+for(i in 1:n_size_simulation){
 sample <- dat_person_raw %>%
   group_by(matchingID) %>%
   slice_sample(n = 20) %>%
   ungroup()
 
-saveRDS(sample,"../../data_raw/samples/sample001.RDS")
+  doc_name <- paste0("../../data_raw/samples/","sample_",sprintf("%03.0f",i),".RDS")
+  saveRDS(sample,doc_name)
+}
+
+
+duplicated(sample$i00) %>% table()
+
+
+### save first sample for model building
+dat_houshold_matching <- dat_houshold_raw[dat_houshold_raw$i00 %in% sample$i00,]
+
+### renaming the columns so its clear they are from hh data
+colnames(dat_houshold_matching)
+
+merge(sample)
+sample
+saveRDS(sample,"../../data_raw/samples/sample_for_model_building.RDS")
+
+
+
 ```
 
