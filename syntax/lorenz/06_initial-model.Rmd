@@ -18,3 +18,28 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
+
+```{r}
+# packages
+library(haven)
+library(tidyverse)
+library(reactable)
+library(sf)
+library(data.table)
+```
+
+```{r}
+# load data
+sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+```
+
+```{r}
+model <- lm(data = sample,
+  formula = aestudio ~ p25_sexo + hh_urbrur + hh_tot_pers + p26_edad)
+
+
+summary(model)
+```
+
+
+

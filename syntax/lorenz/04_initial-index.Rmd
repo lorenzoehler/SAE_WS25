@@ -110,4 +110,31 @@ avg_edu_year$mean_studyYears %>% as.numeric() %>% hist()
 ```
 
 
+## shape file 
+
+```{r}
+library(sf)
+map <- read_sf("../../data_raw/shape/bol_adm_mdrt_2013/bol_admbnd_adm3_mdrt_2013_v01.shp")
+
+### create new matchin ID column,
+map$matchingID <- str_remove(map$ADM3_PCODE,pattern = "BO")
+map$matchingID <- map$matchingID %>% as.numeric()
+```
+
+### join map with data
+
+```{r}
+sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+
+tmp_dat <-  sample %>% group_by(matchingID) %>% summarise(mean_aestudio = mean(aestudio,na.rm = T))
+
+map <- tmp_dat %>%
+  left_join(map, by = "matchingID") %>% 
+  st_as_sf() %>%  
+  select(-geometry, geometry)
+
+ggplot(map) +
+  geom_sf(aes(fill = mean_aestudio), color = "grey20", size = 0.1) +
+  theme_classic()
+```
 

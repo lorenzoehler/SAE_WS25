@@ -27,10 +27,16 @@ library(data.table)
 
 ```{r}
 dat_person_raw <- fread("../../data_raw/large_files/Persona_CPV-2024.csv")
+
+dat_person_raw$matchingID <- paste0(
+  sprintf("%02.0f", dat_person_raw$idep),
+  sprintf("%02.0f", dat_person_raw$iprov),
+  sprintf("%02.0f", dat_person_raw$imun)) %>% as.numeric()
+
 ```
 
 
 ```{r}
-dat_person_raw %>% group_by(i00) %>% count()
+dat_person_raw %>% group_by(matchingID) %>% count()
 ```
 

@@ -29,12 +29,48 @@ library(data.table)
 ```{r}
 dat_person_raw <- fread("../../data_raw/large_files/Persona_CPV-2024.csv")
 dat_houshold_raw <- fread("../../data_raw/large_files/Vivienda_CPV-2024.csv")
+
+dat_person_raw$matchingID <- paste0(
+  sprintf("%02.0f", dat_person_raw$idep),
+  sprintf("%02.0f", dat_person_raw$iprov),
+  sprintf("%02.0f", dat_person_raw$imun)) %>% as.numeric()
+
+dat_houshold_raw$matchingID <- paste0(
+  sprintf("%02.0f", dat_houshold_raw$idep),
+  sprintf("%02.0f", dat_houshold_raw$iprov),
+  sprintf("%02.0f", dat_houshold_raw$imun)) %>% as.numeric()
+
+dat_person_raw$ID <- paste0("per_",1:nrow(dat_person_raw))
+dat_houshold_raw$ID <- paste0("hh_",1:nrow(dat_houshold_raw))
 ```
 
 
 ```{r}
 set.seed(420)
 
+### irst smaple for modeling
+sample <- dat_person_raw %>%
+  group_by(matchingID) %>%
+  slice_sample(n = 20) %>%
+  ungroup()
+
+
+# extract matching housholds
+dat_houshold_matching <- dat_houshold_raw[dat_houshold_raw$i00 %in% sample$i00,]
+
+### renaming the columns so its clear they are from hh data
+colnames(dat_houshold_matching) <- paste0("hh_",colnames(dat_houshold_matching))
+
+sample <- merge(sample, dat_houshold_matching,by.x = "i00",by.y = "hh_i00")
+sample[,c("idep","hh_idep","iprov","hh_iprov","imun","imun")]
+
+## save the sampling for model building
+saveRDS(sample,"../../data_raw/samples/sample_for_model_building.RDS")
+```
+
+
+```{r}
+#### smaples for simulation
 n_size_simulation <- 10
 
 for(i in 1:n_size_simulation){
@@ -46,22 +82,6 @@ sample <- dat_person_raw %>%
   doc_name <- paste0("../../data_raw/samples/","sample_",sprintf("%03.0f",i),".RDS")
   saveRDS(sample,doc_name)
 }
-
-
-duplicated(sample$i00) %>% table()
-
-
-### save first sample for model building
-dat_houshold_matching <- dat_houshold_raw[dat_houshold_raw$i00 %in% sample$i00,]
-
-### renaming the columns so its clear they are from hh data
-colnames(dat_houshold_matching)
-
-merge(sample)
-sample
-saveRDS(sample,"../../data_raw/samples/sample_for_model_building.RDS")
-
-
 
 ```
 
