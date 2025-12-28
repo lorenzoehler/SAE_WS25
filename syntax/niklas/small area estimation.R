@@ -31,12 +31,12 @@ library(emdi)
 
 # Paths ------------------------------------------------------------------
 # Paths anpassen:
-PATH_SAMPLE_RDS  <- "sample_for_model_building.RDS"
+PATH_SAMPLE_RDS  <- "../../data_raw/sample/sample_for_model_building.RDS"
 PATH_CENSUS_PER  <- "../../data_raw/large_files/Persona_CPV-2024.csv"
-
+C:\Users\nikla\OneDrive\Dokumente\GitHub\SAE_WS25\data_raw
 # 0) Load SAMPLE (Survey) ------------------------------------------------
 smp <- readRDS(PATH_SAMPLE_RDS)
-
+smp <- sample_for_model_building
 # check: ob die benötigte Spalten im Sample da sind
 stopifnot(all(c("mun_res_cod", "ocu_1d_19") %in% names(smp)))
 
@@ -180,7 +180,63 @@ crosswalk <- mun_table %>%
     name_key = stri_trans_general(toupper(trimws(muni_name)), "Latin-ASCII")
   ) %>%
   distinct(Domain, name_key)
+#
 
+
+
+
+
+# res_df: SAE-Ergebnis-Tabelle in "Mapping-kompatibler" Form bauen
+res_df <- as.data.frame(res)
+
+# Domain-Spalte sauber benennen (je nach emdi-Version heißen die Spalten leicht anders)
+if ("mun_res_cod" %in% names(res_df)) {
+  res_df <- dplyr::rename(res_df, Domain = mun_res_cod)
+} else if ("domains" %in% names(res_df)) {
+  res_df <- dplyr::rename(res_df, Domain = domains)
+} else if ("domain" %in% names(res_df)) {
+  res_df <- dplyr::rename(res_df, Domain = domain)
+} else if (!"Domain" %in% names(res_df)) {
+  stop("Keine Domain-Spalte in `res` gefunden (erwartet: mun_res_cod/domains/domain/Domain).")
+}
+
+# Direct/FH/MSE/CV-Spalten robust auf Standardnamen bringen (Groß-/Kleinschreibung egal)
+nms_lower <- tolower(names(res_df))
+if ("direct" %in% nms_lower) names(res_df)[match("direct", nms_lower)] <- "Direct"
+if ("fh"     %in% nms_lower) names(res_df)[match("fh",     nms_lower)] <- "FH"
+if ("mse"    %in% nms_lower) names(res_df)[match("mse",    nms_lower)] <- "MSE"
+if ("cv"     %in% nms_lower) names(res_df)[match("cv",     nms_lower)] <- "CV"
+
+# Typen setzen (wichtig fürs Joinen und Plotten)
+res_df <- res_df %>%
+  dplyr::mutate(
+    Domain = as.character(Domain),
+    FH     = as.numeric(FH),
+    Direct = if ("Direct" %in% names(res_df)) as.numeric(Direct) else Direct
+  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
 # 2) SAE-Ergebnisse vorbereiten (Domain + FH)
 # res_df hat: Domain, FH, Direct, ...
 sae_res <- res_df %>%
