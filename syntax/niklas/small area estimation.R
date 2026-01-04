@@ -31,9 +31,9 @@ library(emdi)
 
 # Paths ------------------------------------------------------------------
 # Paths anpassen:
-PATH_SAMPLE_RDS  <- "../../data_raw/sample/sample_for_model_building.RDS"
+PATH_SAMPLE_RDS  <- "../../data_raw/samples/sample_for_model_building.RDS"
 PATH_CENSUS_PER  <- "../../data_raw/large_files/Persona_CPV-2024.csv"
-C:\Users\nikla\OneDrive\Dokumente\GitHub\SAE_WS25\data_raw
+# C:\Users\nikla\OneDrive\Dokumente\GitHub\SAE_WS25\data_raw
 # 0) Load SAMPLE (Survey) ------------------------------------------------
 smp <- readRDS(PATH_SAMPLE_RDS)
 smp <- sample_for_model_building

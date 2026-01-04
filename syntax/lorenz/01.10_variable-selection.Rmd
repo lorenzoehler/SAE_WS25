@@ -1,0 +1,214 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(haven)
+library(tidyverse)
+library(reactable)
+library(sf)
+library(data.table)
+remove(list = ls())
+```
+
+```{r}
+sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+```
+
+# selection
+
+## filter for NAs
+filter for variables which have lots of NAs 
+
+```{r}
+dat_table_nas <- sapply(sample, FUN = function(x) mean(is.na(x)))
+
+dat_table_nas <- data.frame("name" = names(dat_table_nas),
+           "percentage_na" = dat_table_nas)
+
+nrow(dat_table_nas)
+```
+
+
+```{r}
+dat_selection <- dat_table_nas %>% filter(percentage_na < .8)
+nrow(dat_selection)
+
+dat_selection %>% filter(percentage_na < .8) %>% reactable(.,filterable = T)
+```
+
+```{r}
+str_subset(dat_selection$name,pattern = "p26")
+```
+
+i will group into logical, factor or numeric 
+
+i will only mark things as logical or numeric 
+
+```{r}
+c(
+  "p24_parentes","p25_sexo","p26_edad","")
+```
+
+```{r}
+list_variables <- dat_selection$name
+
+dat_ko_variables <- data_frame(
+  "variable" = character(),
+  "r_squared_num" = character(),
+  "p_value_num" = character(),
+  "r_squared_factor" = character(),
+  "p_value_factor" = character(),
+  "n_fac_lelves" = character(),
+  "min" = character(),
+  "qnt_1st" = character(),
+  "median" = character(),
+  "mean" = character(),
+  "qnt_3rd" = character(),
+  "max" = character(),
+  "NA_percentage" = character()
+)
+
+for (i in 1:length(list_variables)) {
+  tmp_object <- list_variables[i]
+  tmp_variable_num <- sample[[tmp_object]]
+  tmp_variable_fac <- tmp_variable_num %>% as.factor()
+  tmp_length_variable <- table(tmp_variable_fac) %>% length()
+  
+  print(paste0("now doing number: ", i))
+  
+  ### dont run model if more then 15 factor
+  if (tmp_length_variable > 15) {
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = NA,
+      "p_value_num" = NA,
+      "r_squared_factor" = NA,
+      "p_value_factor" = NA,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+    print("early exit, too many")
+    next
+    
+  } else if (tmp_length_variable <= 1) {
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = NA,
+      "p_value_num" = NA,
+      "r_squared_factor" = NA,
+      "p_value_factor" = NA,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+    print("early exit, one or less")
+    next
+    
+  } else {
+    formula <- as.formula(paste("aestudio ~", tmp_object))
+    model_num <- lm(sample$aestudio ~ tmp_variable_num)
+    model_fac <- lm(sample$aestudio ~ tmp_variable_fac)
+    
+    r_squared_num <- summary(model_num)$r.squared
+    p_value_num <- summary(model_num)$coefficients[1, 4]
+    
+    r_squared_factor <- summary(model_fac)$r.squared
+    p_value_factor <- summary(model_fac)$coefficients[1, 4]
+
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = r_squared_num,
+      "p_value_num" = p_value_num,
+      "r_squared_factor" = r_squared_factor,
+      "p_value_factor" = p_value_factor,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+  }
+}
+
+```
+
+```{r}
+options(scipen = 999)
+dat_ko_variables[,-1] <- sapply(dat_ko_variables[,-1],FUN = function(x) round(as.numeric(x),5))
+
+dat_ko_variables %>% reactable(.,compact = T, filterable = T)
+```
+
+
+```{r}
+dat_ko_variables <- dat_ko_variables(dat_ko_variables$NA_percentage <.3) %>% table()
+```
+
+```{r}
+dat_ko_variables_selection <- dat_ko_variables[order(dat_ko_variables$r_squared_factor,decreasing = T),]
+```
+
+```{r}
+candidates <- dat_ko_variables_selection[1:50,"variable"]
+```
+
+```{r}
+sample_candidates <- sample[,candidates$variable]
+formula <- paste("aestudio ~",paste(colnames(sample_candidates),collapse =  " + " ))
+formula <- formula %>% as.formula()
+
+sample_candidates$aestudio <- sample$aestudio
+
+lm(formula = formula,data = sample_candidates)
+
+step(formula,direction = "both",)
+```
+```{r}
+na_counts <- sapply(sample_candidates, function(x) sum(is.na(x)))
+sort(na_counts, decreasing = TRUE)
+
+
+sample_candidates$
+```
+
+
+
+
+
+
+

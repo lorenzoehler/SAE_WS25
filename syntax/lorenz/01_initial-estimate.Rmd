@@ -1,0 +1,114 @@
+---
+title: "Untitled"
+author: "Lorenz Oehler"
+date: "2025-12-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(haven)
+library(tidyverse)
+library(reactable)
+library(sf)
+library(data.table)
+library(saeTrafo)
+```
+
+
+```{r}
+remove(list = ls())
+```
+
+model I will use for now
+
+aestudio ~ p25_sexo + hh_urbrur + hh_tot_pers + p26_edad)
+
+and for now for now only the person variables
+
+aestudio ~ p25_sexo + p26_edad
+
+
+```{r}
+sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+dat_census_pers <- readRDS("../../data_raw/large_files/dat_census_pers_selection.RDS")
+
+# dat_census_pers <- fread(
+#   "../../data_raw/large_files/Persona_CPV-2024.csv",
+#   select = c("mun_res_cod","idep","iprov","imun", "p25_sexo","p26_edad")
+# )
+
+### select variables census
+variables <- c("matchingID", "p25_sexo","p26_edad")
+
+dat_census_pers <- dat_census_pers %>% select(variables)
+dat_census_pers <- na.omit(dat_census_pers)
+
+sapply(dat_census_pers,function(x) sum(is.na(x)))
+
+# sample_1pct <- dat_census_pers %>%
+#   group_by("matchingID") %>%
+#   slice_sample(prop = 0.01) %>%
+#   ungroup()
+
+### select variables sample
+variables <- c("matchingID","aestudio", "p25_sexo","p26_edad")
+
+sample <- sample %>% select(variables)
+sample <- na.omit(sample)
+
+sapply(sample,function(x) sum(is.na(x)))
+
+
+lm(formula = aestudio ~ p25_sexo + p26_edad, data = sample) %>% summary()
+
+freq <- dat_census_pers %>% group_by(matchingID) %>% count()
+freq %>% reactable(.,filterable = T)
+
+freq_sample <- sample %>% group_by(matchingID) %>% count()
+freq_sample %>% reactable(.,filterable = T)
+
+```
+
+
+```{r}
+### create vector with sizo of domains
+table_pop_size <- dat_census_pers %>% group_by(matchingID) %>% count()
+vec_pop_size <- table_pop_size$n
+names(vec_pop_size) <- table_pop_size$matchingID
+
+
+BHF_unit <-  NER_Trafo(fixed = aestudio ~ p25_sexo + p26_edad
+    ,MSE = T
+    ,smp_domains = "matchingID"
+    ,smp_data = sample
+    ,pop_data = dat_census_pers
+    ,pop_area_size = vec_pop_size
+    ,pop_domains = "matchingID"
+    ,transformation = "no"
+    ,seed = 2022)
+
+saveRDS(BHF_unit, "BHF_unit_full_17-48.RDS")
+BHF_unit <- readRDS("BHF_unit_full_17-48.RDS")
+
+summary(BHF_unit)
+```
+
+
+```{r}
+dat_domains <- BHF_unit$ind
+colnames(dat_domains) <- c("matchingID","Mean_aestudio")
+dat_domains$matchingID <- dat_domains$matchingID %>% as.numeric()
+
+map <- readRDS("../../data_raw/shape/map.RDS")
+map <- map %>% left_join(dat_domains, by = "matchingID")
+
+ggplot(map) +
+  geom_sf(aes(fill = Mean_aestudio), color = "grey20", size = 0.1) +
+  theme_classic()
+```
+
+
