@@ -14,6 +14,11 @@ rm(list = ls())
 library(data.table)
 library(dplyr)
 library(emdi)
+library(here)
+```{r}
+#install.packages("here")
+```
+
 
 # Mapping packages --------------------------------------------
 library(sf)
@@ -23,22 +28,29 @@ library(stringi)
 
 # Paths -------------------------------------------------------
 # Wichtig: Pfade als Strings!
-PATH_SAMPLE_RDS <- "../../data_raw/sample/sample_for_model_building.RDS"
+PATH_SAMPLE_RDS <- here::here("data_raw", "samples", "sample_for_model_building.RDS")
 PATH_CENSUS_PER <- "../../data_raw/large_files/Persona_CPV-2024.csv"
 PATH_SHAPEFILE  <- "../../data_raw/shape/stanford-xg218hn4313-shapefile/xg218hn4313.shp"
 
 # 0) Load SAMPLE (Survey) -------------------------------------
 smp <- readRDS(PATH_SAMPLE_RDS)
+```{r}
+class(smp)
+dim(smp)
+names(smp)
+str(smp)
+summary(smp)
+```
 
 # Check: benötigte Spalten vorhanden?
 stopifnot(all(c("mun_res_cod", "ocu_1d_19") %in% names(smp)))
 
 # Domain-ID & Outcome sauber setzen ---------------------------
-<!-- smp <- smp %>% -->
-<!--   mutate( -->
-<!--     mun_res_cod = as.character(mun_res_cod), -->
-<!--     ocu_1d_19   = as.numeric(ocu_1d_19) -->
-<!--   ) -->
+smp <- smp %>%
+  mutate(
+    mun_res_cod = as.character(mun_res_cod),
+    ocu_1d_19   = as.numeric(ocu_1d_19)
+  )
 
 # 1) Direct estimates + vardir (aus dem Sample) ----------------
 # Ziel: pro municipio
@@ -209,6 +221,16 @@ ggplot(map_df) +
 census_person <- fread(PATH_CENSUS_PER)
 names(census_person)
 ```
+
+#Übersicht Kovariate nützliche
+| Variable                                          | Was ist das?                       | Wofür wichtig?         |
+| ------------------------------------------------- | ---------------------------------- | ---------------------- |
+| `idep`, `iprov`, `imun`                           | Departement/Provinz/Municipio (ID) | Gruppierung/Mapping    |
+| `mun_res_cod`                                     | Municipio des Wohnortes (Code)     | **Domain-ID** (SAE!)   |
+| `dep_res_cod`, `prov_res_cod`                     | Dept/Prov Wohnort                  | Aggregation / Checks   |
+| `mun_lab_cod` / `dep_lab_cod` / `prov_lab_cod`    | Arbeitsort-Codes                   | Pendeln / Arbeitsmarkt |
+| `mun_res5_cod` / `dep_res5_cod` / `prov_res5_cod` | Wohnort vor 5 Jahren               | Migration              |
+| `matchingID`, `ID`, `hh_matchingID`, `hh_ID`      | Schlüssel (Person/HH)              | Mergen/Join            |
 
 
 ##Pflicht Kovariat
