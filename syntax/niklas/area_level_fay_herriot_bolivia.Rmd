@@ -1,0 +1,721 @@
+---
+title: "small area estimation"
+author: "Niklas Biegert"
+date: "The Date"
+---
+
+# ============================================================
+# AREA-LEVEL SAE (Fay–Herriot) - FULL PIPELINE
+# ============================================================
+#Für einen Sauberen Start:
+rm(list = ls())
+
+# Packages ----------------------------------------------------
+library(data.table)
+library(dplyr)
+library(emdi)
+library(here)
+```{r}
+#install.packages("here")
+```
+
+
+# Mapping packages --------------------------------------------
+library(sf)
+library(ggplot2)
+library(rvest)
+library(stringi)
+
+# Paths -------------------------------------------------------
+# Wichtig: Pfade als Strings!
+PATH_SAMPLE_RDS <- here::here("data_raw", "samples", "sample_for_model_building.RDS")
+PATH_CENSUS_PER <- "../../data_raw/large_files/Persona_CPV-2024.csv"
+PATH_SHAPEFILE  <- "../../data_raw/shape/stanford-xg218hn4313-shapefile/xg218hn4313.shp"
+
+# 0) Load SAMPLE (Survey) -------------------------------------
+smp <- readRDS(PATH_SAMPLE_RDS)
+```{r}
+class(smp)
+dim(smp)
+names(smp)
+str(smp)
+summary(smp)
+```
+
+# Check: benötigte Spalten vorhanden?
+stopifnot(all(c("mun_res_cod", "ocu_1d_19") %in% names(smp)))
+
+# Domain-ID & Outcome sauber setzen ---------------------------
+smp <- smp %>%
+  mutate(
+    mun_res_cod = as.character(mun_res_cod),
+    ocu_1d_19   = as.numeric(ocu_1d_19)
+  )
+
+# 1) Direct estimates + vardir (aus dem Sample) ----------------
+# Ziel: pro municipio
+#   Mean     = direkter Schätzer (z.B. Anteil beschäftigt)
+#   Var_Mean = Approx.-Varianz des direkten Schätzers (Binomial)
+direct_estimates <- smp %>%
+  group_by(mun_res_cod) %>%
+  summarise(
+    Mean     = mean(ocu_1d_19, na.rm = TRUE),
+    n_eff    = sum(!is.na(ocu_1d_19)),
+    Var_Mean = ifelse(n_eff > 0, Mean * (1 - Mean) / n_eff, NA_real_),
+    .groups  = "drop"
+  )
+
+# Stabilität: FH braucht Varianz > 0 ---------------------------
+eps <- 1e-8
+direct_estimates <- direct_estimates %>%
+  mutate(
+    Var_Mean = ifelse(is.na(Var_Mean), NA_real_, pmax(Var_Mean, eps))
+  )
+
+# 2) Load CENSUS (Population) ---------------------------------
+# Nur die Spalten laden, die du brauchst
+census_person <- fread(
+  PATH_CENSUS_PER,
+  select = c("mun_res_cod", "aestudio")
+)
+
+stopifnot(all(c("mun_res_cod", "aestudio") %in% names(census_person)))
+
+# 3) Census auxiliary variable auf Area-Level ------------------
+census_person <- census_person %>%
+  mutate(
+    mun_res_cod = as.character(mun_res_cod),
+    years_edu   = suppressWarnings(as.numeric(as.character(aestudio)))
+  )
+
+census_aux_data <- census_person %>%
+  group_by(mun_res_cod) %>%
+  summarise(
+    mean_years_edu = mean(years_edu, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# emdi::fh erlaubt keine NAs in Aux-Variablen -------------------
+global_mean_edu <- mean(census_aux_data$mean_years_edu, na.rm = TRUE)
+
+census_aux_data <- census_aux_data %>%
+  mutate(
+    mean_years_edu = ifelse(is.na(mean_years_edu), global_mean_edu, mean_years_edu)
+  )
+
+stopifnot(!any(is.na(census_aux_data$mean_years_edu)))
+
+# 4) Combine sample + census aux --------------------------------
+combined_data <- combine_data(
+  pop_data    = as.data.frame(census_aux_data),
+  pop_domains = "mun_res_cod",
+  smp_data    = as.data.frame(direct_estimates),
+  smp_domains = "mun_res_cod"
+)
+
+# 5) Fit Fay–Herriot model -------------------------------------
+fh_fit <- fh(
+  fixed         = Mean ~ mean_years_edu,
+  vardir        = "Var_Mean",
+  combined_data = combined_data,
+  domains       = "mun_res_cod",
+  method        = "reml",
+  MSE           = TRUE
+)
+
+summary(fh_fit)
+
+# FH vs Direct (Shrinkage sichtbar) -----------------------------
+compare_plot(fh_fit, CV = TRUE, label = "no_title")
+
+# Domain-Schätzer extrahieren ----------------------------------
+res <- estimators(fh_fit, MSE = TRUE, CV = TRUE)
+res_df <- as.data.frame(res)
+
+# Domain-Spalte robust auf "Domain" vereinheitlichen ------------
+if ("mun_res_cod" %in% names(res_df)) {
+  res_df <- rename(res_df, Domain = mun_res_cod)
+} else if ("domains" %in% names(res_df)) {
+  res_df <- rename(res_df, Domain = domains)
+} else if ("domain" %in% names(res_df)) {
+  res_df <- rename(res_df, Domain = domain)
+} else if (!"Domain" %in% names(res_df)) {
+  stop("Keine Domain-Spalte in `res` gefunden.")
+}
+
+# Schätzer-Spalten robust standardisieren -----------------------
+nms_lower <- tolower(names(res_df))
+if ("direct" %in% nms_lower) names(res_df)[match("direct", nms_lower)] <- "Direct"
+if ("fh"     %in% nms_lower) names(res_df)[match("fh",     nms_lower)] <- "FH"
+if ("mse"    %in% nms_lower) names(res_df)[match("mse",    nms_lower)] <- "MSE"
+if ("cv"     %in% nms_lower) names(res_df)[match("cv",     nms_lower)] <- "CV"
+
+res_df <- res_df %>%
+  mutate(
+    Domain = as.character(Domain),
+    FH     = as.numeric(FH)
+  )
+
+# ============================================================
+# MAPPING
+# ============================================================
+
+# 0) Shapefile laden -------------------------------------------
+bol_muni <- st_read(PATH_SHAPEFILE) %>%
+  mutate(
+    name_key = stri_trans_general(toupper(trimws(name_3)), "Latin-ASCII")
+  )
+
+# 1) Wikipedia-Tabelle: INE-Code -> Municipio-Name --------------
+wiki_url <- "https://es.wikipedia.org/wiki/Anexo:Municipios_de_Bolivia"
+tables <- read_html(wiki_url) %>% html_table(fill = TRUE)
+
+mun_table <- tables[[1]]
+
+crosswalk <- mun_table %>%
+  transmute(
+    Domain    = as.character(`Código INE`),
+    muni_name = as.character(Nombre)
+  ) %>%
+  mutate(
+    name_key = stri_trans_general(toupper(trimws(muni_name)), "Latin-ASCII")
+  ) %>%
+  distinct(Domain, name_key)
+
+# 2) SAE-Ergebnisse vorbereiten --------------------------------
+sae_res <- res_df %>%
+  transmute(
+    Domain = as.character(Domain),
+    sae    = as.numeric(FH)
+  ) %>%
+  filter(Domain != "0", Domain != "999999")
+
+# 3) Join: Shape -> Wikipedia -> SAE ----------------------------
+map_df <- bol_muni %>%
+  left_join(crosswalk, by = "name_key") %>%
+  left_join(sae_res,   by = "Domain")
+
+sum(!is.na(map_df$sae))
+
+# 4) Plot -------------------------------------------------------
+ggplot(map_df) +
+  geom_sf(aes(fill = sae), color = NA) +
+  scale_fill_viridis_c(na.value = "grey90") +
+  labs(
+    title    = "Bolivien – Fay–Herriot Small Area Estimation (Municipios)",
+    subtitle = "Join über Municipio-Namen (Shape) + INE-Codes (Wikipedia)",
+    fill     = "FH-Schätzer"
+  ) +
+  theme_minimal()
+
+
+
+
+
+
+
+##Census neu einlesen (für Kovariat suche)
+
+```{r}
+
+census_person <- fread(PATH_CENSUS_PER)
+names(census_person)
+```
+
+#Übersicht Kovariate nützliche
+| Variable                                          | Was ist das?                       | Wofür wichtig?         |
+| ------------------------------------------------- | ---------------------------------- | ---------------------- |
+| `idep`, `iprov`, `imun`                           | Departement/Provinz/Municipio (ID) | Gruppierung/Mapping    |
+| `mun_res_cod`                                     | Municipio des Wohnortes (Code)     | **Domain-ID** (SAE!)   |
+| `dep_res_cod`, `prov_res_cod`                     | Dept/Prov Wohnort                  | Aggregation / Checks   |
+| `mun_lab_cod` / `dep_lab_cod` / `prov_lab_cod`    | Arbeitsort-Codes                   | Pendeln / Arbeitsmarkt |
+| `mun_res5_cod` / `dep_res5_cod` / `prov_res5_cod` | Wohnort vor 5 Jahren               | Migration              |
+| `matchingID`, `ID`, `hh_matchingID`, `hh_ID`      | Schlüssel (Person/HH)              | Mergen/Join            |
+
+
+##Pflicht Kovariat
+
+#Alter – p26_edad  (mean_age_d = Durchschnittsalter im Municipio)
+Geschlecht – p25_sexo  (share_female_d = Anteil Frauen im Municipio)
+
+
+##empfehlenswerte Kovariaten (1–2 davon reichen völlig)
+
+#
+Ethnie / indigene Zugehörigkeit p32_pueblo_per, p32_pueblos, p32_pueblo_cod
+
+Warum extrem relevant (gerade in Bolivien): historisch sehr starke Bildungsunterschiede große regionale Variation              (share_indigenous_d = Anteil indigene Bevölkerung)
+
+
+
+#
+Sprache / Muttersprache idioma_mayor_uso, idioma_mat, p341_idiomat_cod
+
+Warum sinnvoll:Sprachbarrieren hängen stark mit Bildungsjahren zusammen sehr guter Proxy für strukturelle Benachteiligung           (share_native_language_d = Anteil mit indigener Muttersprache)
+
+
+
+#
+Urbanität / Wohnort p36_lugres, p37_lugres5, dep_res_cod, mun_res_cod
+
+Warum: Stadt/Land-Unterschiede in Bildungszugang fast immer starker Effekt (share_urban_d = Anteil urban lebender Personen)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Kovariat Testung
+1) Referenzmodell (Baseline): Fay–Herriot ohne Kovariaten
+Fay–Herriot Nullmodell: nur Intercept (keine Kovariaten)
+
+```{r}
+fh_null <- fh(
+fixed = Mean ~ 1,
+vardir = "Var_Mean",
+combined_data = combined_data,
+domains = "mun_res_cod",
+method = "reml",
+MSE = TRUE
+)
+
+summary(fh_null)
+```
+
+
+
+2) Kovariaten aus dem Census bauen (Alter + Anteil Frauen)
+2.1 Census einlesen (nur benötigte Spalten)
+
+```{r}
+library(data.table)
+library(dplyr)
+library(emdi)
+
+census_person <- fread(
+PATH_CENSUS_PER,
+select = c("mun_res_cod", "p25_sexo", "p26_edad")
+)
+
+stopifnot(all(c("mun_res_cod", "p25_sexo", "p26_edad") %in% names(census_person)))
+
+```
+
+
+2.2 Area-Level Kovariaten erzeugen
+Area-Level Kovariaten bauen: mean_age und share_female
+```{r}
+#Annahme (typisch): p25_sexo ist 1=male, 2=female
+#Falls bei dir anders: Mapping unten in case_when anpassen.
+
+census_aux_data <- census_person %>%
+mutate(
+mun_res_cod = as.character(mun_res_cod),
+
+# Alter numerisch
+age = suppressWarnings(as.numeric(as.character(p26_edad))),
+
+# Geschlecht -> female Indikator (0/1)
+sexo_chr = as.character(p25_sexo),
+female = case_when(
+  sexo_chr %in% c("2", "F", "f", "Female", "FEMALE", "Mujer", "MUJER") ~ 1,
+  sexo_chr %in% c("1", "M", "m", "Male", "MALE", "Hombre", "HOMBRE")   ~ 0,
+  TRUE ~ NA_real_
+)
+
+) %>%
+group_by(mun_res_cod) %>%
+summarise(
+mean_age = mean(age, na.rm = TRUE),
+share_female = mean(female, na.rm = TRUE),
+.groups = "drop"
+)
+
+# emdi::fh erlaubt keine NA in Aux-Variablen -> imputiere mit Gesamtmittel
+
+census_aux_data <- census_aux_data %>%
+mutate(
+mean_age = ifelse(is.na(mean_age), mean(mean_age, na.rm = TRUE), mean_age),
+share_female = ifelse(is.na(share_female), mean(share_female, na.rm = TRUE), share_female)
+)
+
+stopifnot(!any(is.na(census_aux_data$mean_age)))
+stopifnot(!any(is.na(census_aux_data$share_female)))
+
+summary(census_aux_data)
+
+
+```
+3) combined_data neu erstellen (entscheidender Schritt)
+```{r}
+combined_data_cov <- combine_data(
+pop_data    = as.data.frame(census_aux_data),
+pop_domains = "mun_res_cod",
+smp_data    = as.data.frame(direct_estimates),
+smp_domains = "mun_res_cod"
+)
+
+# Check: sind die Kovariaten wirklich drin?
+
+stopifnot(all(c("mean_age", "share_female") %in% names(combined_data_cov)))
+
+names(combined_data_cov)
+
+```
+4) Fay–Herriot Modell mit Kovariaten schätzen
+
+```{r}
+fh_cov <- fh(
+fixed         = Mean ~ mean_age + share_female,
+vardir        = "Var_Mean",
+combined_data = combined_data_cov,
+domains       = "mun_res_cod",
+method        = "reml",
+MSE           = TRUE
+)
+
+summary(fh_cov)
+
+```
+
+
+5) Modellvergleich über ØCV und ØMSE (robust!)
+5.1 Robuste Qualitätsfunktion
+
+```{r}
+mean_quality <- function(fit) {
+est <- estimators(fit, MSE = TRUE, CV = TRUE)
+
+# In manchen emdi-Versionen ist das schon data.frame, manchmal nicht:
+
+est_df <- as.data.frame(est)
+
+# Spaltennamen robust finden (Groß/Klein egal)
+
+nms <- tolower(names(est_df))
+
+cv_col  <- names(est_df)[which(nms == "cv")[1]]
+mse_col <- names(est_df)[which(nms == "mse")[1]]
+
+# Fallback: falls es nicht exakt "cv"/"mse" heißt, suche Teilstring
+
+if (is.na(cv_col))  cv_col  <- names(est_df)[grepl("cv",  nms)][1]
+if (is.na(mse_col)) mse_col <- names(est_df)[grepl("mse", nms)][1]
+
+if (is.na(cv_col) || is.na(mse_col)) {
+stop(
+paste0(
+"CV/MSE-Spalten nicht gefunden. Verfügbare Spalten: ",
+paste(names(est_df), collapse = ", ")
+)
+)
+}
+
+cv_vals  <- suppressWarnings(as.numeric(est_df[[cv_col]]))
+mse_vals <- suppressWarnings(as.numeric(est_df[[mse_col]]))
+
+c(
+mean_CV  = mean(cv_vals,  na.rm = TRUE),
+mean_MSE = mean(mse_vals, na.rm = TRUE)
+)
+}
+
+```
+
+5.2 Werte berechnen und vergleichen
+```{r}
+q_null <- mean_quality(fh_null)
+q_cov  <- mean_quality(fh_cov)
+
+q_null
+q_cov
+
+# Optional: direkte Gegenüberstellung
+
+rbind(
+FH_null = q_null,
+FH_cov  = q_cov
+)
+
+```
+6) Interpretation 
+
+Die Werte sind identisch.
+Die Einbindung der Kovariaten führt zu keiner messbaren Verbesserung der Schätzqualität.
+
+Der Vergleich des Fay–Herriot-Modells ohne Kovariaten mit einem Modell, das Alter und Geschlechterstruktur berücksichtigt, zeigt keine Unterschiede in den durchschnittlichen Variationskoeffizienten und mittleren quadratischen Fehlern der Small-Area-Schätzer. Die Einbindung der Kovariaten führt somit zu keiner messbaren Verbesserung der Schätzqualität.
+
+
+
+
+
+
+
+
+
+#Test ob andere Kovariablen besser sind 
+#Urbanität
+
+2.1 Census neu einlesen
+```{r}
+census_person <- fread(
+  PATH_CENSUS_PER,
+  select = c("mun_res_cod", "p36_lugres")
+)
+
+```
+(Annahme: p36_lugres codiert urban/rural)
+
+2.2 Area-Level Urbanitätsanteil bauen
+```{r}
+census_aux_urban <- census_person %>%
+  mutate(
+    mun_res_cod = as.character(mun_res_cod),
+    urban = case_when(
+      p36_lugres %in% c(1, "urban", "URBANO") ~ 1,
+      p36_lugres %in% c(2, "rural", "RURAL")  ~ 0,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  group_by(mun_res_cod) %>%
+  summarise(
+    share_urban = mean(urban, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# NA-Imputation
+census_aux_urban$share_urban[
+  is.na(census_aux_urban$share_urban)
+] <- mean(census_aux_urban$share_urban, na.rm = TRUE)
+
+```
+2.3 Combine + FH
+```{r}
+combined_urban <- combine_data(
+  pop_data    = as.data.frame(census_aux_urban),
+  pop_domains = "mun_res_cod",
+  smp_data    = as.data.frame(direct_estimates),
+  smp_domains = "mun_res_cod"
+)
+
+fh_urban <- fh(
+  fixed         = Mean ~ share_urban,
+  vardir        = "Var_Mean",
+  combined_data = combined_urban,
+  domains       = "mun_res_cod",
+  method        = "reml",
+  MSE           = TRUE
+)
+
+```
+
+2.4 Vergleich
+```{r}
+rbind(
+  FH_null  = mean_quality(fh_null),
+  FH_urban = mean_quality(fh_urban)
+)
+
+```
+ mean_CV mean_MSE
+Die Kovariate Urbanität führt zu keiner messbaren Verbesserung der Schätzqualität.
+
+
+#Test ob andere Kovariablen besser sind 
+#Ethnie / indigene Zugehörigkeit
+
+3.1 Area-Level Anteil indigener Bevölkerung
+```{r}
+census_aux_ind <- fread(
+  PATH_CENSUS_PER,
+  select = c("mun_res_cod", "p32_pueblos")
+) %>%
+  mutate(
+    mun_res_cod = as.character(mun_res_cod),
+    indigenous = ifelse(p32_pueblos == 1, 1, 0)
+  ) %>%
+  group_by(mun_res_cod) %>%
+  summarise(
+    share_indigenous = mean(indigenous, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+census_aux_ind$share_indigenous[
+  is.na(census_aux_ind$share_indigenous)
+] <- mean(census_aux_ind$share_indigenous, na.rm = TRUE)
+
+```
+
+3.2 FH
+```{r}
+combined_ind <- combine_data(
+  pop_data    = as.data.frame(census_aux_ind),
+  pop_domains = "mun_res_cod",
+  smp_data    = as.data.frame(direct_estimates),
+  smp_domains = "mun_res_cod"
+)
+
+fh_ind <- fh(
+  fixed         = Mean ~ share_indigenous,
+  vardir        = "Var_Mean",
+  combined_data = combined_ind,
+  domains       = "mun_res_cod",
+  method        = "reml",
+  MSE           = TRUE
+)
+
+```
+3.3 Vergleich
+```{r}
+rbind(
+  FH_null = mean_quality(fh_null),
+  FH_ind  = mean_quality(fh_ind)
+)
+
+```
+
+#Andere Kovariate ? 
+p38_asiste – Schulbesuch (besucht Schule?)
+p39_tipoest – Art der Bildungseinrichtung
+p40_lee – Kann lesen?
+p41a_nivel – höchstes Bildungsniveau
+p54_hvtot – Kinderzahl             hohe Kinderzahl ↔ weniger Bildungsjahre
+p55_hstot – Haushaltsgröße
+p42_discap – Behinderung
+
+
+
+
+
+
+#Kovariaten, die gemeinsam geprüfenwerden
+
+| Variable     | Bedeutung      | Area-Level-Form       |
+| ------------ | -------------- | --------------------- |
+| `p38_asiste` | besucht Schule | Anteil Schulbesuch    |
+| `p40_lee`    | kann lesen     | Anteil alphabetisiert |
+| `p41a_nivel` | Bildungsniveau | Anteil Sekundar+      |
+| `p54_hvtot`  | Kinderzahl     | Mittelwert            |
+| `p55_hstot`  | Haushaltsgröße | Mittelwert            |
+
+
+
+
+1)Area-Level Kovariaten sauber bauen (einmal, gesammelt)
+
+```{r}
+library(dplyr)
+library(data.table)
+library(emdi)
+
+census_person <- fread(
+  PATH_CENSUS_PER,
+  select = c(
+    "mun_res_cod",
+    "p38_asiste",
+    "p40_lee",
+    "p41a_nivel",
+    "p54_hvtot",
+    "p55_hstot"
+  )
+)
+
+census_aux_edu <- census_person %>%
+  mutate(
+    mun_res_cod = as.character(mun_res_cod),
+
+    # Schulbesuch (1 = ja)
+    attend = ifelse(p38_asiste == 1, 1, 0),
+
+    # Lesen (1 = ja)
+    literate = ifelse(p40_lee == 1, 1, 0),
+
+    # Sekundarbildung oder höher (Codierung ggf. anpassen!)
+    sec_plus = ifelse(p41a_nivel >= 3, 1, 0),
+
+    # numerische Variablen
+    children = suppressWarnings(as.numeric(p54_hvtot)),
+    hhsize   = suppressWarnings(as.numeric(p55_hstot))
+  ) %>%
+  group_by(mun_res_cod) %>%
+  summarise(
+    share_attend   = mean(attend,   na.rm = TRUE),
+    share_literate = mean(literate, na.rm = TRUE),
+    share_secplus  = mean(sec_plus, na.rm = TRUE),
+    mean_children  = mean(children, na.rm = TRUE),
+    mean_hhsize    = mean(hhsize,   na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# NA-Imputation (emdi::fh verlangt vollständige X)
+for (v in names(census_aux_edu)[-1]) {
+  census_aux_edu[[v]][is.na(census_aux_edu[[v]])] <-
+    mean(census_aux_edu[[v]], na.rm = TRUE)
+}
+
+summary(census_aux_edu)
+
+```
+
+
+2)combined_data mit ALLEN Kovariaten bauen
+
+```{r}
+combined_edu <- combine_data(
+  pop_data    = as.data.frame(census_aux_edu),
+  pop_domains = "mun_res_cod",
+  smp_data    = as.data.frame(direct_estimates),
+  smp_domains = "mun_res_cod"
+)
+
+stopifnot(all(
+  c(
+    "share_attend",
+    "share_literate",
+    "share_secplus",
+    "mean_children",
+    "mean_hhsize"
+  ) %in% names(combined_edu)
+))
+
+```
+
+
+3)Fay–Herriot mit ALLEN Kovariaten schätzen
+```{r}
+fh_edu_all <- fh(
+  fixed = Mean ~
+    share_attend +
+    share_literate +
+    share_secplus +
+    mean_children +
+    mean_hhsize,
+  vardir        = "Var_Mean",
+  combined_data = combined_edu,
+  domains       = "mun_res_cod",
+  method        = "reml",
+  MSE           = TRUE
+)
+
+summary(fh_edu_all)
+
+```
+
+4)Vergleich mit dem Nullmodell
+```{r}
+rbind(
+  FH_null    = mean_quality(fh_null),
+  FH_edu_all = mean_quality(fh_edu_all)
+)
+
+```
+
+
+Zur Prüfung des Mehrwerts zusätzlicher Hilfsvariablen wurde ein erweitertes Fay–Herriot-Modell mit mehreren bildungsnahen Kovariaten geschätzt. Obwohl diese Variablen inhaltlich eng mit dem Bildungsniveau verknüpft sind, zeigt der Modellvergleich anhand der durchschnittlichen Variationskoeffizienten und mittleren quadratischen Fehler keine Verbesserung gegenüber dem Referenzmodell ohne Kovariaten. Die Einbindung zusätzlicher Kovariaten führt somit zu keinem messbaren Gewinn in der Schätzqualität. Für die weitere Analyse wird daher das einfachere Fay–Herriot-Modell ohne Kovariaten verwendet.
