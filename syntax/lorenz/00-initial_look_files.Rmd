@@ -19,11 +19,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # shape file
 
-
 ```{r}
 library(sf)
 library(tidyverse)
-map <- read_sf("../../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp")
+# map <- read_sf("../../data_raw/stanford-xg218hn4313-shapefile/xg218hn4313.shp") ## this was the old one, now we use another one
+map <- read_sf("../../data_raw/shape/bol_adm_mdrt_2013/bol_admbnd_adm2_mdrt_2013_v01.shp") ## adm 2 because we dont use the municipalities anymore, but the provinces 
 
 map$count <- 1:nrow(map)
 
@@ -35,88 +35,62 @@ ggplot(map) +
 
 # DHS data
 
+Originally one of the topic Ideas was to use this dataset.
+
 ```{r}
 library(haven)
-dat_houshold_raw <- read_dta("../../data_raw/BO_2008_DHS_11182025_929_234442/BOHR51DT/BOHR51FL.DTA")
-
-dat_houshold_raw
+dat_houshold_raw <- read_dta("../../data_raw/2008_DHS/BOHR51DT/BOHR51FL.DTA")
+dim(dat_houshold_raw)
+dat_houshold_raw[1:10,] %>% head(3)
 ```
 
-# census
+# census 2024
+
+This is the bolivian census from 2024
 
 ```{r}
 # census <- read_csv("../../data_raw/large_files/Persona_CPV-2024.csv")
 
 library(data.table)
-head1000_person <- fread("../../data_raw/large_files/Persona_CPV-2024.csv", nrows = 10000)
-head1000_houshold <- fread("../../data_raw/large_files/Vivienda_CPV-2024.csv", nrows = 10000)
+# dat_census_person <- fread("../../data_raw/large_files/Persona_CPV-2024.csv") ### full census person
+dat_census_person <- fread("../../data_raw/large_files/Persona_CPV-2024.csv", nrows = 100) ### only selection of first 100 rows
 
-# i00 <- fread("../../data_raw/large_files/Persona_CPV-2024.csv", select = c("i00"))
+# dat_census_houshold <- fread("../../data_raw/large_files/Vivienda_CPV-2024.csv") ### full census houshold
+dat_census_houshold <- fread("../../data_raw/large_files/Vivienda_CPV-2024.csv", nrows = 100) ### full census houshold
 
-# unique(i00) 
-# 
-
-# head1000 %>% filter(p361_anres < 9999) %>% pull(p361_anres) %>% 
-# hist(.,breaks = 100)
-
-head1000_person %>% colnames()
+dat_census_person %>% colnames()
 ```
 
 
-```{r}
-read_csv(file = "../../data_raw/codebook/variables-12-09-25-082801.csv")
-read_csv(file = "../../data_raw/codebook/variables-12-09-25-082852.csv")
-```
+# houshold_survey 2021
 
-# Microcesnus 2021
+This is the houshold_survey from 2021, also not part of the project anymore 
 
 ```{r}
 library(haven)
 
-head1000_EH_person <- read_sav("../../data_raw/2021_houshold-survey/EH2021_Persona.sav")
+dat_houshold_survey <- read_sav("../../data_raw/2021_houshold-survey/EH2021_Persona.sav")
 
-var_labels <- sapply(head1000_EH_person, attr, "label")
-var_labels %>% unlist()
-dat_EV <- read_sav("../../../../data_raw/data_raw/2021_houshold-survey/EH2021_Persona.sav")
-
-head1000_EH_person
-
+## to create table for colnames and labels
 var_info <- data.frame(
-  variable = names(head1000_EH_person),
-  label = sapply(head1000_EH_person, function(x) attr(x, "label")),
+  variable = names(dat_houshold_survey),
+  label = sapply(dat_houshold_survey, function(x) attr(x, "label")),
   row.names = NULL
 )
 
+var_info %>% head(10)
 write_csv(var_info,file = "../../data_raw/2021_houshold-survey/doc/person_var_info.csv")
-
 ```
 
 ```{r}
-dat_housholdsuvery_person <- read_sav("../../data_raw/2021_houshold-survey/EH2021_Persona.sav")
-
-dat_EV <- read_sav(
-  "/Users/lorenzoehler/Documents/GitHub/SAE_WS25/../../data_raw/data_raw/2021_houshold-survey/EH2021_Persona.sav",
-  encoding = "latin1"
-)
-
-lapply(dat_EV,FUN = summary)
-
-
-dat_housholdsurvey_person$upm
+### varaioble which housholds are in the same neighbourhood, but not possible to identify province 
+# dat_houshold_survey$upm 
 ```
 
 how many pers houshold per area?
 
 ```{r}
-dat_housholdsuvery_person %>% 
+dat_houshold_survey %>% 
   mutate(depto = as_factor(depto)) %>% 
   group_by(depto) %>% count()
 ```
-
-
-
-
-
-
-
-

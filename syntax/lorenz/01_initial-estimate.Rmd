@@ -91,10 +91,22 @@ BHF_unit <-  NER_Trafo(fixed = aestudio ~ p25_sexo + p26_edad
     ,transformation = "no"
     ,seed = 2022)
 
+
+BHF_unit <-  NER_Trafo(fixed = aestudio ~ 1
+    ,MSE = T
+    ,smp_domains = "matchingID"
+    ,smp_data = sample
+    ,pop_data = dat_census_pers
+    ,pop_area_size = vec_pop_size
+    ,pop_domains = "matchingID"
+    ,transformation = "no"
+    ,seed = 2022)
+
 saveRDS(BHF_unit, "BHF_unit_full_17-48.RDS")
 BHF_unit <- readRDS("BHF_unit_full_17-48.RDS")
 
 summary(BHF_unit)
+BHF_unit$MSE$Mean %>% mean()
 ```
 
 
