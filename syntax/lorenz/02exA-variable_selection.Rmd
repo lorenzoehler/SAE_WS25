@@ -1,0 +1,327 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+This script serves as a playing ground to figure out which variables serve best to build a good model, to predict our dependend variable. 
+
+```{r}
+library(reactable)
+library(sf)
+library(data.table)
+remove(list = ls())
+library(tidyverse)
+```
+
+```{r}
+sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+```
+```{r}
+## how many colums are there
+sample %>% dim()
+```
+
+we have 164 variables
+
+# selection
+
+## filter for NAs
+filter for variables which have lots of NAs 
+
+```{r}
+dat_table_nas <- tibble(
+  "colnames" = colnames(sample),
+  "pecentageNAs" = sapply(
+    sample,
+    FUN = function(x)
+      round(mean(is.na(x)), 3)
+  )
+)
+
+hist(dat_table_nas$pecentageNAs,breaks = 40)
+reactable(dat_table_nas,filterable = T,compact = T,defaultPageSize = 15)
+```
+## filter below .8
+because we need values to actually contain information we will only take a look at the variables, that have at least 50% not NA
+
+```{r}
+### leads to deletion of 
+(dat_table_nas$pecentageNAs > .5) %>% sum
+
+## how many 
+dat_selection <- dat_table_nas %>% filter(pecentageNAs < .5)
+```
+
+# model with single predictor
+In the next step i will run just a single model to get a rough idea of how well two variables are connected and could be used for prediction
+
+Because of simplicity I will just ran a numeric and factorial model for each variable. I will exclude the variables which have way to many levels (over 500).
+This loop either jumps the variable, if the variable only has 1 level or over 500.
+
+```{r}
+
+```
+
+```{r}
+list_variables <- dat_selection$colnames
+
+dat_ko_variables <- data_frame(
+  "variable" = character(),
+  "r_squared_num" = character(),
+  "p_value_num" = character(),
+  "r_squared_factor" = character(),
+  "p_value_factor" = character(),
+  "n_fac_lelves" = character(),
+  "min" = character(),
+  "qnt_1st" = character(),
+  "median" = character(),
+  "mean" = character(),
+  "qnt_3rd" = character(),
+  "max" = character(),
+  "NA_percentage" = character()
+)
+
+for (i in 1:length(list_variables)) {
+  tmp_object <- list_variables[i]
+  tmp_variable_num <- sample[[tmp_object]]
+  tmp_variable_fac <- tmp_variable_num %>% as.factor()
+  tmp_length_variable <- table(tmp_variable_fac) %>% length()
+  
+  print(paste0("now doing number: ", i))
+  
+  ### dont run model if more then 15 factor
+  if (tmp_length_variable > 500) {
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = NA,
+      "p_value_num" = NA,
+      "r_squared_factor" = NA,
+      "p_value_factor" = NA,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+    print("early exit, too many")
+    next
+    
+  } else if (tmp_length_variable <= 1) {
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = NA,
+      "p_value_num" = NA,
+      "r_squared_factor" = NA,
+      "p_value_factor" = NA,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+    print("early exit, one or less")
+    next
+    
+  } else {
+    formula <- as.formula(paste("aestudio ~", tmp_object))
+    model_num <- lm(sample$aestudio ~ tmp_variable_num)
+    model_fac <- lm(sample$aestudio ~ tmp_variable_fac)
+    
+    r_squared_num <- summary(model_num)$r.squared
+    p_value_num <- summary(model_num)$coefficients[1, 4]
+    
+    r_squared_factor <- summary(model_fac)$r.squared
+    p_value_factor <- summary(model_fac)$coefficients[1, 4]
+
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = r_squared_num,
+      "p_value_num" = p_value_num,
+      "r_squared_factor" = r_squared_factor,
+      "p_value_factor" = p_value_factor,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+  }
+}
+
+```
+
+```{r}
+## convert column to numeric
+dat_ko_variables$mean <- dat_ko_variables$mean %>% as.numeric() 
+
+### round variables to 3 digits after 0 
+dat_ko_variables <- dat_ko_variables %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+dat_ko_variables %>% reactable(.,compact = T, filterable = T,defaultPageSize = 20)
+```
+
+```{r}
+dat_ko_variables <- dat_ko_variables[order(dat_ko_variables$r_squared_factor,decreasing = T),]
+```
+
+## save as excel
+For exploratory purposes I will export the data frame as an excel.   
+An older version of this exists which was used to select the variables, it has the suffix _filled. 
+
+```{r}
+library(openxlsx)
+write.xlsx(dat_ko_variables,"../../data_raw/2024_census/processed/dat_ko_variables_selection.xlsx")
+```
+
+# combined model
+
+```{r}
+## remove aestudio
+dat_ko_variables_selection <- dat_ko_variables %>% dplyr::filter(variable != "aestudio")
+
+### remove variables with high fac levels
+dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$n_fac_lelves < 15,]
+
+### remove variables with high NA-ratio
+dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$NA_percentage < .25,]
+
+### remove variables, which are too close conceptually
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in%  c("p41a_nivel","p41b_curso","p41a_nivel_act","p41b_curso_act","nivel_edu"))
+
+## delete to remove singularities
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in%  c("p49_ocu_1d","act_eco_2d_13","p341_idiomat_cod","p51_actec_2d","p50_semp","p43_pago","v19d_celular","condact_19"))
+
+## delete variables because very similar
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% c("g_edad","g_edad_bol"))
+
+## remove because a lot of NAs
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% c("p45_agro","v16_desague"))
+
+### select only first
+dat_ko_variables_selection <- dat_ko_variables_selection[1:40,]
+
+candidates <- dat_ko_variables_selection[,"variable"]
+
+sample_candidates <- sample[,c("aestudio",candidates$variable)]
+
+formula <- paste("aestudio ~",paste(candidates$variable,collapse =  " + " ))
+formula <- formula %>% as.formula()
+
+model <- lm(formula = formula,data = sample_candidates)
+model %>% summary()
+
+step(model,direction = "backward")
+```
+
+just runngin the step probably is not the best idea
+
+
+```{r}
+na_counts <- sapply(sample_candidates, function(x) sum(is.na(x)))
+sort(na_counts, decreasing = TRUE)
+
+```
+
+```{r}
+### for now this approch is not the one 
+# dat_ko_variables_selection_filled<- openxlsx::read.xlsx("../../data_raw/2024_census/processed/dat_ko_variables_selection_filled.xlsx")
+# 
+# dat_ko_variables_selection_filled <- dat_ko_variables_selection_filled %>%
+#     filter(include == "yes" | include == "decide")
+# 
+# sample_candidates <- sample[,dat_ko_variables_selection_filled$variable]
+# formula <- paste("aestudio ~",paste(colnames(sample_candidates),collapse =  " + " ))
+# formula <- formula %>% as.formula()
+# 
+# sample_candidates$aestudio <- sample$aestudio
+# 
+# model <- lm(formula = formula,data = sample_candidates)
+# model %>% summary()
+# 
+# step(model,direction = "backward")
+# 
+# model_step <- lm(aestudio ~ p40_lee + gedadedu + g_edad_bol + g_edad + p42c_camina + 
+#     p53_ecivil + v19c_compu + p42d_comuni + p50_catocu_13 + 
+#     p42b_oir + v10_combus + v06_piso + v19e_f + v11_basura + 
+#     p42_discap + p31_afiliado + v19f_inetmovil + v19e_inetfijo + 
+#     p42a_ver + v03_pared + v19b_tv + v18j_lavadora + 
+#     urbrur + p43_pago + v18f_refri + v15_servsan + v19h_d + 
+#     v19d_celular + v19g_tvcable + v08_aguadist + v18g_micro + 
+#     v17_tenencia + v18c_auto + v05_techo + p32_pueblo_per + 
+#     v04_revoq + p35_lugnac + p30c_privad + p25_sexo + v18b_moto + 
+#     v18h_calefon + v18i_aire + v13_habitac + p30a_public + 
+#     p30d_atedom + v19h_telfijo + v18d_carreta,sample)
+# 
+# model_step %>% summary()
+
+### an idea how wo copoe with NA values
+# library(mice)
+# library(VIM)
+# 
+# aggr(sample_candidates, numbers = TRUE, prop = TRUE)
+# imp <- mice(sample_candidates, m = 5, maxit = 10, seed = 123)
+# completed_data <- complete(imp, 1) 
+# plot(imp)
+```
+
+
+```{r}
+lm(sample$aestudio ~ sample$p26_edad + sample$p25_sexo) %>% summary
+
+### plus occupancy
+lm(sample$aestudio ~ sample$p26_edad + as.factor(sample$ocu_1d_13) + sample$p25_sexo) %>% summary
+
+### plus rural/urban
+lm(sample$aestudio ~ sample$p26_edad + as.factor(sample$ocu_1d_13) + sample$p25_sexo + sample$urbrur) %>% summary
+
+#### 
+# sample$p43_pago + sample$hh_tot_pers 
+```
+
+So a model with a relatively high R^2 without a variable with lots of levels would be this:
+aestudio ~ sample\$p26_edad  + sample\$p25_sexo + sample\$urbrur + sample\$p40_lee
+
+```{r}
+lm(sample$aestudio ~ sample$p26_edad  + sample$p25_sexo + sample$urbrur + sample$p40_lee) %>% summary
+```
+
+higher Rˆ2 would be this model:
+```{r}
+### vs without as.factor(sample$ocu_1d_13)
+lm(sample$aestudio ~ sample$p26_edad  + sample$p25_sexo + as.factor(sample$ocu_1d_13) + sample$urbrur + sample$p40_lee) %>% summary
+```
+
+For now this will do, but maybe we should think about sth else
+
+
+
