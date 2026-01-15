@@ -1,0 +1,75 @@
+\ProvidesPackage{Unistyle}
+
+%This document sets the layout and astetics of the poster. 
+%For details on how to use and set layouts in tikzposter look at https://texdoc.org/serve/tikzposter.pdf/0
+%For differnt styles look at https://github.com/luqinglin1024/poster/blob/master/tikzposterBlockstyles.tex
+
+
+%Overall layout style: different Styles possible 
+\usecolorstyle[colorPalette=GrayOrangeBlue]{Russia}
+
+%Blockstyle
+ \defineblockstyle{Unistyle}{
+    titlewidthscale=1, bodywidthscale=1, titlecenter,
+    titleoffsetx=0pt, titleoffsety=0pt, bodyoffsetx=0pt, bodyoffsety=15mm,
+    bodyverticalshift=15mm, roundedcorners=22, linewidth=5pt,
+    titleinnersep=8mm, bodyinnersep=8mm
+}{
+    \draw[ inner sep=\blockbodyinnersep, color=blockbodybgcolor , fill=blockbodybgcolor]
+        (blockbody.south west) rectangle (blockbody.north east); %
+    \ifBlockHasTitle%
+        \draw[ inner sep=\blocktitleinnersep, line width=\blocklinewidth, color=blocktitlebgcolor, fill=blocktitlebgcolor]
+           (blocktitle.south west) rectangle (blocktitle.north east); %
+    \fi%
+}
+\useblockstyle{Unistyle}
+
+%Title, bolck, note style: different styles possible
+\usetitlestyle{Filled}
+\useinnerblockstyle{Table}
+\usenotestyle{Default}
+
+
+%Colours
+%\usecolorpalette{} möglich: Default, BlueGrayOrange, GreenGrayViolet, PurpleGrayBlue, BrownBlueOrange
+%\usecolorstyle[options]{style name} möglich Default, Australia, Britain, Sweden, Spain, Russia, Denmark, Germany
+\definecolorpalette{Unifarben} {
+\definecolor{uniblue}{RGB}{0,69,125} % corporate design Uni Bamberg blue
+}
+\definecolor{blocktitlebgcolor}{RGB}{0,69,125} 
+\definecolor{titlebackground}{RGB}{0,69,125}
+
+
+% Background:
+\definebackgroundstyle{Unibackground}{
+\draw[inner sep=0pt, line width=0pt, color=white, fill=white]
+(bottomleft) rectangle (topright);
+}
+\usebackgroundstyle{Unibackground}
+
+
+% Titel
+\makeatletter
+\renewcommand\TP@maketitle{%
+ % Logo left
+    \tikz[remember picture,overlay]\node[scale=0.8,anchor=west,xshift=-0.54\linewidth,yshift=3.9cm,inner sep=0pt] {%
+       \@titlegraphic
+    };
+    % titel, author etc.
+   \centering
+   \begin{minipage}[b]{0.8\linewidth}
+        \centering
+        \color{titlefgcolor}
+        {\bfseries \Huge \sc \@title \par}
+        \vspace*{1em}
+        {\huge \@author \par}
+        \vspace*{1em}
+        {\LARGE \@institute}
+    \end{minipage}%
+    % Logo right
+    \tikz[remember picture,overlay]\node[scale=0.8,anchor=east,xshift=0.54\linewidth,yshift=3.9cm,inner sep=0pt] {%
+       \@titlegraphic
+    };
+}
+\makeatother
+

@@ -44,9 +44,13 @@ dat_census_aux <- readRDS("../../data_raw/2024_census/processed/census_aux_data_
 
 #### load processed dummy coded census data
 dat <- readRDS("../../data_raw/2024_census/processed/dat_dummyCoding.RDS")
+pop_table <- dat %>% group_by(ID_prov) %>% count()
+
 
 #### load sample data
 sample <- readRDS("../../data_raw/samples/sample_for_model_building_transformed.RDS")
+
+
 ```
 
 # FH model
@@ -55,15 +59,48 @@ sample <- readRDS("../../data_raw/samples/sample_for_model_building_transformed.
 
 ### direct estimate of sample 
 
+We have a simple random sample, which makes calculating the sample variance much easier, and we dont need second order inclusion criterion, nor do we need to use bootsrap or jacknife, to calculate the direct estimate and the domain specific variance. 
+
+This is the HT estimator for the totls in a domain:$\hat{Y}_d = \sum_{i \in s_d} \frac{y_i}{\pi_i}$
+
+This then is the resultig design-based variance: 
+$$
+\text{Var}_\pi(\hat{Y}_d) = \left(1 - \frac{n_d}{N_d}\right) \frac{N_d^2 S_d^2}{n_d}
+$$
+
+Now we are not interest in the totals, but in the variance of the mean, which results in this formula:
+$$
+\text{Var}_\pi(\bar{y}_d) = \frac{1}{N_d^2} \text{Var}_\pi(\hat{Y}_d) 
+= \left(1 - \frac{n_d}{N_d}\right) \frac{S_d^2}{n_d}
+$$
+
+
+
 ```{r}
+# direct_estimates <- sample %>%
+#   group_by(ID_prov) %>%
+#   summarise(
+#     Mean     = mean(aestudio, na.rm = TRUE),
+#     n_eff    = sum(!is.na(aestudio)),
+#     Var_Mean = var(aestudio, na.rm = T)/n_eff, #### we still have t inlcude FPC
+#     .groups  = "drop"
+#   )
+
+sample <- sample %>% left_join(pop_table,by = "ID_prov")
+
 direct_estimates <- sample %>%
-  group_by(ID_prov) %>% 
-  summarise(
-    Mean     = mean(aestudio, na.rm = TRUE), 
-    n_eff    = sum(!is.na(aestudio)), 
-    Var_Mean = var(aestudio, na.rm = T)/n_eff,
-    .groups  = "drop"
+  group_by(ID_prov) %>%
+  reframe(
+    Mean     = mean(aestudio, na.rm = TRUE),
+    n_eff    = sum(!is.na(aestudio)),
+    n = mean(n),
+    Var_Mean = (1 - (n_eff/n)) * var(aestudio, na.rm = T)/n_eff
   )
+
+direct <- direct(y = "aestudio", smp_data = sample, smp_domains =
+"ID_prov", var = FALSE,na.rm = T)
+
+
 ```
 
 ### combine with auxillary data
@@ -94,12 +131,40 @@ fixed = Mean ~ mean_p26_edad + share_ocu_military + share_ocu_manager + share_oc
 vardir = "Var_Mean",
 combined_data = combined_data,
 domains = "ID_prov",
-method = "reml",
+method = "ml",
 MSE = TRUE
 )
 
 fh_model_full$MSE$FH %>% mean()
 ```
+
+
+```{r}
+### model seleciton
+# step(fh_model_full,direction ="backward",criteria = "AIC")
+# step(fh_model_full,direction ="backward",criteria = "BIC")
+
+```
+
+```{r}
+# fh(fixed =Mean ~ share_ocu_professional + share_read_knowing, 
+#     vardir = "Var_Mean", combined_data = combined_data, domains = "ID_prov", 
+#     method = "ml", MSE = TRUE)
+
+# lm(formula = aestudio ~ ocu_professional + read_knowing,data = sample) %>% summary()
+# 
+# lm(formula = aestudio ~ p26_edad + ocu_military + ocu_professional + 
+#     ocu_technician + ocu_adminSupport + ocu_construction + 
+#     ocu_operators + ocu_NaN + read_knowing,data = sample) %>% summary()
+```
+
+### FH dignostics 
+```{r}
+plot(fh_model_full)
+```
+
+
+
 
 # BHF model
 ```{r}
@@ -118,6 +183,11 @@ sapply(dat_BHF_sample,FUN = function(x) sum(is.na(x)))
 ```
 
 ```{r}
+
+```
+
+
+```{r}
 BHF_model_complex <-  NER_Trafo(fixed = aestudio ~ p26_edad 
   + ocu_military + ocu_manager + ocu_professional + ocu_technician 
   + ocu_adminSupport + ocu_serviceSales + ocu_agriculture + ocu_construction 
@@ -133,7 +203,27 @@ BHF_model_complex <-  NER_Trafo(fixed = aestudio ~ p26_edad
   , MSE = T
 )
 
+# step(BHF_model_complex)
+
 BHF_model_complex$MSE$Mean %>% mean()
 ```
+```{r}
+### model selection
+# full_model <- lm(aestudio ~ p26_edad + ocu_military + ocu_professional + 
+    # ocu_technician + ocu_adminSupport + ocu_construction + ocu_operators + 
+    # ocu_NaN + read_knowing,data = sample)
+
+# stats::step(full_model,direction = "backward",k = 2) ### is AIC
+# stats::step(full_model,direction = "backward",k = log(nrow(sample))) ### is BIC
+
+```
+
+
+## diagnostics 
+
+```{r}
+plot(BHF_model_complex)
+```
+
 
 

@@ -1,0 +1,145 @@
+ %depending on the software that is used some things might need to be adapted due to class tikzposter:
+ 
+ % e.g. in Texstudio: 
+  %change via Preferences/Einstellungen ->  build/Erzeugen  
+    %default  compiler: PdfLaTeX 
+    %default bibilography processor: biber  
+    %the paths to images and references.bib might have to be adapted with ./ depending on the editor
+
+ 
+ %Klasse: tikzposter
+ % Fontzizes: 12pt, 14pt, 17pt, 20pt and 25pt
+ %Postergsizes: a0paper, a1paper and a2paper
+ %Orientation: landscape or portrait
+ %also available to set: margin, innermargin, blocjverticalspace, colspace, subcolspace*,*
+\documentclass[25pt, a0paper, portrait]{tikzposter}
+
+\bibliography{references.bib}
+\usepackage{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{blindtext}
+\usepackage{comment}
+\usepackage{xcolor}
+\usepackage{floatflt, epsfig}
+
+\usepackage{Unistyle}
+\usetitlestyle{Unistyle}
+\useblockstyle{Unistyle}
+
+
+%Header:
+\titlegraphic{\includegraphics[width=0.12\textwidth]{images/Logo_weiß.pdf}}
+\title{Poster Template}
+\author{Autoren}
+\date{\today}
+\institute{Institut/Universität Bamberg}
+\titlegraphic{\includegraphics[width=0.12\textwidth]{images/Logo_weiß.pdf}}
+
+
+\begin{document}
+
+\maketitle % wird in Unistyle definiert und gesetzt
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\block{Introduction}
+{
+    \blindtext
+}   
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Colums: 
+\begin{columns}
+    \column{0.5}
+    \block{Titel}{
+        \blindtext
+        \blindtext
+    }
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+    \block{Example for a reference}{ 
+    "Different transformations can be conducted in order to meet the Gaussian
+assumptions for model-based estimation methods: no transformation,
+log-transformation and Box-Cox transformation. For the latter, the optimal
+parameter is obtained by REML estimation." \cite{JSSv091i07}
+}
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \column{0.5}
+     \block{A Figure}
+     {
+        \begin{tikzfigure}
+            \includegraphics[width=0.3\textwidth]{images/Boxplot_Poster.jpeg}
+        \end{tikzfigure}
+        {\textbf{Figure 1:} A Boxplot for two variables\\}
+        \blindtext
+    }
+\end{columns}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{columns}
+    \column{0.6}
+        \begin{columns}
+            \column{0.3}
+            \block{Titel}{
+            \blindtext
+            }
+    \end{columns}
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    \column{0.4}
+    \block{A Table}{
+    \LARGE
+          \begin{tabular}{c|c|c|c|c|c}
+            \hline
+            Min. & 1st Qu. & Median & Mean & 3rd Qu. & Max. \\
+            \hline
+            -2.0979 & -0.4139 & 0.1878 & 0.1562 & 0.8508 & 2.5009 \\
+            \hline
+            \multicolumn{6}{c}{\normalsize Table 1: Summary of variable x1} \\
+        \end{tabular}
+        }
+    \end{columns}
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    \column{0.6}
+    \block{Conclusion}{
+        \blindtext
+    }
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\block{References}{
+\begin{center}
+\printbibliography[heading  = none]
+\end{center}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\block{}{
+    \begin{minipage}[t]{0.24\textwidth}
+        \textbf{Kontak:}\\
+        Name\\
+        email\\
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.24\textwidth}
+        \textbf{Kontak:}\\
+        Name\\
+        email\\
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.24\textwidth}
+        \textbf{Kontak:}\\
+        Name\\
+        email\\
+    \end{minipage}
+    \hfill
+    
+
+}
+
+
+\end{document}
+
