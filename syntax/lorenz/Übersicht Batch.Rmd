@@ -1,0 +1,100 @@
+---
+title: "Übersicht Batch"
+author: "Niklas Biegert"
+date: "2026-01-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Daten vorbereiten
+```{r}
+library(data.table)
+library(ggplot2)
+
+res <- fread("results_batch/summary_final.csv")
+
+res_long <- melt(
+  res,
+  measure.vars = c("fh_full_mean_mse", "bhf_mean_mse"),
+  variable.name = "model",
+  value.name = "mean_mse"
+)
+
+res_long[, model := factor(
+  model,
+  levels = c("fh_full_mean_mse", "bhf_mean_mse"),
+  labels = c("Fay–Herriot (Area-Level)", "Battese–Harter–Fuller (Unit-Level)")
+)]
+
+```
+#Boxplot (sehr gut für Poster)
+```{r}
+ggplot(res_long, aes(x = model, y = mean_mse, fill = model)) +
+  geom_boxplot(alpha = 0.7, width = 0.6) +
+  labs(
+    x = "",
+    y = "Mittlerer MSE über Domains",
+    title = "Vergleich der Unsicherheit: FH vs. BHF (200 Stichproben)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+#plot: Dichte / Histogramm
+```{r}
+ggplot(res_long, aes(x = mean_mse, fill = model)) +
+  geom_density(alpha = 0.4) +
+  labs(
+    x = "Mittlerer MSE",
+    y = "Dichte",
+    title = "Verteilung der mittleren MSE über 200 Stichproben"
+  ) +
+  theme_minimal()
+
+```
+#FH vs. BHF direkt vergleichen (Scatter)
+```{r}
+ggplot(res, aes(x = fh_full_mean_mse, y = bhf_mean_mse)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  labs(
+    x = "FH: mittlerer MSE",
+    y = "BHF: mittlerer MSE",
+    title = "Direkter Vergleich der Modellunsicherheit pro Stichprobe"
+  ) +
+  theme_minimal()
+
+```
+#Summary-Tabelle (Poster-Box)
+```{r}
+res[, .(
+  mean_MSE = mean(fh_full_mean_mse),
+  median_MSE = median(fh_full_mean_mse),
+  sd_MSE = sd(fh_full_mean_mse)
+)]
+
+```
+#und für BHF:
+```{r}
+res[, .(
+  mean_MSE = mean(bhf_mean_mse),
+  median_MSE = median(bhf_mean_mse),
+  sd_MSE = sd(bhf_mean_mse)
+)]
+
+```
+#zusammen:
+```{r}
+rbind(
+  FH  = res[, .(mean = mean(fh_full_mean_mse), sd = sd(fh_full_mean_mse))],
+  BHF = res[, .(mean = mean(bhf_mean_mse), sd = sd(bhf_mean_mse))]
+)
+
+
+
+```
+

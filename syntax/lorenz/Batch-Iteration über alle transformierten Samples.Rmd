@@ -80,7 +80,7 @@ lm( aestudio ~ p26_edad +
 dat_BHF_sample$ocu_military %>% sum()
 
 
-§# -----------------------------
+# -----------------------------
 # 3) Helper: sicherer mean (auch wenn leer)
 # -----------------------------
 safe_mean <- function(x) {
