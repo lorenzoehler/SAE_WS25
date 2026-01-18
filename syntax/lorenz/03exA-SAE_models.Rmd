@@ -34,7 +34,7 @@ library(tidyverse)
 In this script the SAE models FH and BHF will be calculated.   
 The formulat for the estimation which we will use is: 
 
-aestudio ~ p26_edad + ocu_military + ocu_manager + ocu_professional + ocu_technician + ocu_adminSupport + ocu_serviceSales + ocu_agriculture + ocu_construction + ocu_operators + ocu_unskilled + ocu_NaN + ocu_1d_13_REST + sex_female + read_knowing + urbrur_urban
+aestudio ~ p26_edad + ocu_military + ocu_professional + ocu_technician + ocu_adminSupport + ocu_construction +ocu_operators + ocu_NaN + read_knowing + urbrur_urban
 
 # loading Data
 
@@ -46,10 +46,22 @@ dat_census_aux <- readRDS("../../data_raw/2024_census/processed/census_aux_data_
 dat <- readRDS("../../data_raw/2024_census/processed/dat_dummyCoding.RDS")
 pop_table <- dat %>% group_by(ID_prov) %>% count()
 
-
 #### load sample data
+# sample <- readRDS("../../data_raw/samples/transformed/sample_001.RDS")
 sample <- readRDS("../../data_raw/samples/sample_for_model_building_transformed.RDS")
 
+sample %>% class()
+sample <- sample %>% as.data.frame()
+
+# FH full nutzt aggregated/shares aus dat_census_aux
+fh_formula <- Mean ~ mean_p26_edad + share_ocu_military +
+  share_ocu_professional + share_ocu_adminSupport + share_ocu_construction +
+  share_ocu_operators + share_ocu_NaN + share_read_knowing + share_urbrur_urban
+
+# BHF nutzt individuelle Dummyvariablen im Sample/Census
+bhf_formula <- aestudio ~ p26_edad + ocu_military + ocu_professional + 
+    ocu_technician + ocu_adminSupport + ocu_construction +
+    ocu_operators + ocu_NaN + read_knowing + urbrur_urban
 
 ```
 
@@ -93,14 +105,32 @@ direct_estimates <- sample %>%
   reframe(
     Mean     = mean(aestudio, na.rm = TRUE),
     n_eff    = sum(!is.na(aestudio)),
-    n = mean(n),
+    n = mean(n,na.rm = T),
     Var_Mean = (1 - (n_eff/n)) * var(aestudio, na.rm = T)/n_eff
   )
 
-direct <- direct(y = "aestudio", smp_data = sample, smp_domains =
-"ID_prov", var = FALSE,na.rm = T)
+### recreate direct object
+direct_rec <- list(
+  "ind" = data.frame("Domain" = direct_estimates$ID_prov,
+                     "Mean" = direct_estimates$Mean),
+  "MSE" = data.frame("Domain" = direct_estimates$ID_prov,
+                     "Mean" = direct_estimates$Var_Mean)
+)
+class(direct_rec) <- c("direct", "emdi")
+
+# direct_rec %>% class()
+# direct %>% class()
 
 
+# direct <- emdi::direct(y = "aestudio", smp_data = sample ,smp_domains = "ID_prov",var = T,na.rm = T,B = 500)
+# saveRDS(direct,"../../data_raw/simulation/processed/direct_500_bootstraps.RDS")
+direct <- readRDS("../../data_raw/simulation/processed/direct_500_bootstraps.RDS")
+
+# tmp_dat <- merge(direct$MSE[,c("Domain","Mean")],direct_estimates[,c("ID_prov","Var_Mean")],by.x = "Domain", by.y = "ID_prov")
+# plot(tmp_dat$Mean,tmp_dat$Var_Mean)
+# direct$successful_bootstraps
+
+# cor.test(tmp_dat$Mean,tmp_dat$Var_Mean)
 ```
 
 ### combine with auxillary data
@@ -127,7 +157,7 @@ fh_model_null$MSE$FH %>% mean()
 ### FH full model 
 ```{r}
 fh_model_full <- fh(
-fixed = Mean ~ mean_p26_edad + share_ocu_military + share_ocu_manager + share_ocu_professional + share_ocu_technician + share_ocu_adminSupport + share_ocu_serviceSales + share_ocu_agriculture + share_ocu_construction + share_ocu_operators + share_ocu_unskilled + share_ocu_NaN  + share_sex_female + share_read_knowing + share_urbrur_urban,
+fixed = fh_formula,
 vardir = "Var_Mean",
 combined_data = combined_data,
 domains = "ID_prov",
@@ -136,6 +166,7 @@ MSE = TRUE
 )
 
 fh_model_full$MSE$FH %>% mean()
+(sqrt(fh_model_full$MSE$FH)/fh_model_full$ind$FH * 100) %>% mean()
 ```
 
 
@@ -153,14 +184,19 @@ fh_model_full$MSE$FH %>% mean()
 
 # lm(formula = aestudio ~ ocu_professional + read_knowing,data = sample) %>% summary()
 # 
-# lm(formula = aestudio ~ p26_edad + ocu_military + ocu_professional + 
-#     ocu_technician + ocu_adminSupport + ocu_construction + 
-#     ocu_operators + ocu_NaN + read_knowing,data = sample) %>% summary()
+model <-  lm(formula = aestudio ~ p26_edad + ocu_military + ocu_professional +ocu_technician + ocu_adminSupport + ocu_construction + ocu_operators + ocu_NaN +  read_knowing + urbrur_urban, data = sample)
+
+stats::step(model,direction = "both")
+
 ```
 
 ### FH dignostics 
 ```{r}
-plot(fh_model_full)
+p_dig_FH <- plot(fh_model_full)
+p_dig_FH_comp <- compare_plot(model = fh_model_full,direct = direct_estimates,MSE = T,CV = T)
+
+p_dig_FH
+p_dig_FH_comp
 ```
 
 
@@ -182,17 +218,9 @@ dat_BHF_sample$ID_prov <- dat_BHF_sample$ID_prov %>% as.factor()
 sapply(dat_BHF_sample,FUN = function(x) sum(is.na(x)))
 ```
 
-```{r}
-
-```
-
 
 ```{r}
-BHF_model_complex <-  NER_Trafo(fixed = aestudio ~ p26_edad 
-  + ocu_military + ocu_manager + ocu_professional + ocu_technician 
-  + ocu_adminSupport + ocu_serviceSales + ocu_agriculture + ocu_construction 
-  + ocu_operators + ocu_unskilled + ocu_NaN + sex_female 
-  + read_knowing + urbrur_urban
+BHF_model_full <-  NER_Trafo(fixed = bhf_formula
   ,smp_domains = "ID_prov"
   , smp_data = dat_BHF_sample
   , pop_data = dat_BHF_census
@@ -203,10 +231,12 @@ BHF_model_complex <-  NER_Trafo(fixed = aestudio ~ p26_edad
   , MSE = T
 )
 
-# step(BHF_model_complex)
 
-BHF_model_complex$MSE$Mean %>% mean()
+# step(BHF_model_full)
+# sapply(sample,function(x)  var(x))
+BHF_model_full$MSE$Mean %>% mean()
 ```
+
 ```{r}
 ### model selection
 # full_model <- lm(aestudio ~ p26_edad + ocu_military + ocu_professional + 
@@ -215,6 +245,21 @@ BHF_model_complex$MSE$Mean %>% mean()
 
 # stats::step(full_model,direction = "backward",k = 2) ### is AIC
 # stats::step(full_model,direction = "backward",k = log(nrow(sample))) ### is BIC
+library(lmerTest)
+
+lmer_model <- lmer(aestudio ~ p26_edad + ocu_military + ocu_professional +
+    ocu_technician + ocu_adminSupport + ocu_construction + ocu_operators +
+    ocu_NaN + read_knowing + (1|ID_prov),data = sample)
+
+# lmer_model %>% summary()
+
+step(lmer_model)
+
+### suggested model
+# lmer_model <- lmer(aestudio ~ p26_edad + ocu_professional + ocu_technician + 
+#        ocu_adminSupport + ocu_operators + ocu_NaN + read_knowing + 
+#        (1 | ID_prov),data = sample) %>% summary()
+
 
 ```
 
@@ -222,8 +267,192 @@ BHF_model_complex$MSE$Mean %>% mean()
 ## diagnostics 
 
 ```{r}
-plot(BHF_model_complex)
+p_dig_BHF <- plot(BHF_model_full)
+p_dig_BHF_comp <- saeTrafo::compare_plot(model = BHF_model_full,direct = direct,MSE = T,CV = T)
 ```
 
+### step
+```{r}
+model_step <- lm(aestudio ~ p26_edad + ocu_military + ocu_professional + 
+    ocu_technician + ocu_adminSupport + ocu_construction +
+    ocu_operators + ocu_NaN + read_knowing + urbrur_urban, dat_BHF_sample) 
+
+stats::step(model_step,direction = "both",k = log(nrow(sample)))
+stats::step(model_step,direction = "both",k = 2)
+```
+### pretty diagnostics
+
+#### FH
+
+```{r}
+library(cowplot)
+
+p1 <- p_dig_FH$density_res
+
+p2 <- p_dig_FH$density_res +
+  # scale_color_manual(values = c("red")) +
+  # scale_fill_manual(values = c("red")) +
+  geom_density(color = "red",fill = "red",alpha = .15, linewidth = .4) +
+   # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  theme_minimal() +
+    labs(
+    title = "Density plot - standardized Residuals",
+    # subtitle = "Fay–Herriot model",
+    x = "standardized Residuals",
+    y = "Density",
+    # caption = "Source: household survey + census"
+  )
+
+p3 <- p_dig_FH$density_ran
+
+p4 <- p_dig_FH$density_ran +
+  # scale_color_manual(values = c("red")) +
+  # scale_fill_manual(values = c("red")) +
+  geom_density(color = "red",fill = "red",alpha = .15, linewidth = .4) +
+   # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  theme_minimal() +
+    labs(
+    title = "Density plot - randome Effects",
+    # subtitle = "Fay–Herriot model",
+    x = "randome effects",
+    y = "Desnity",
+    # caption = "Source: household survey + census"
+  )
+
+plot_grid(p1,p2,p3,p4,nrow = 2,ncol = 2)
+```
+
+```{r}
+p1 <- p_dig_FH_comp$scatter_FH
+
+p2 <- p_dig_FH_comp$scatter_FH +
+  geom_smooth(aes(color = "Reg. line"), method = "lm", se = FALSE) +
+  scale_color_manual(values = c("Reg. line" = "red", "Intersection" = "orange")) +
+  theme_minimal() +
+  labs(
+    title = "Density plot - standardized Residuals",
+    x = "standardized Residuals",
+    y = "Density",
+    color = ""
+  )
+
+p3 <- p_dig_FH_comp$line_FH
+
+p4 <- p_dig_FH_comp$line_FH +
+  # Override layer colors to be mapped instead of fixed
+  # geom_line(aes(color = c("Direct", "Model-based"))) +
+  geom_line(size = 1,alpha = .3) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("red","orange")) +
+  theme_minimal() +
+  labs(
+    title = "Density plot - Random Effects",
+    x = "Random effects",
+    y = "Density",
+    color = "Method"
+  )
+
+p5 <- p_dig_FH_comp$ordered_CV_FH
+
+p6 <- p_dig_FH_comp$ordered_CV_FH +
+  scale_color_manual(values = c("red","orange")) +
+  theme_minimal() +
+    labs(
+    title = "Density plot - randome Effects",
+    # subtitle = "Fay–Herriot model",
+    x = "randome effects",
+    y = "Desnity",
+    # caption = "Source: household survey + census"
+  )
+
+p6
+
+
+
+plot_grid(p1,p2,p3,p4,p5,p6,nrow = 3,ncol = 2)
+```
+#### BHF
+
+```{r}
+p1 <- p_dig_BHF$density_res
+
+p2 <- p_dig_BHF$density_res +
+  # scale_color_manual(values = c("red")) +
+  # scale_fill_manual(values = c("red")) +
+  geom_density(color = "#7ca982",fill = "#7ca982",alpha = .15, linewidth = .4) +
+   # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  theme_minimal() +
+    labs(
+    title = "Density plot - standardized Residuals",
+    # subtitle = "Fay–Herriot model",
+    x = "standardized Residuals",
+    y = "Density",
+    # caption = "Source: household survey + census"
+  )
+
+p3 <- p_dig_BHF$density_ran
+
+p4 <- p_dig_FH$density_ran +
+  # scale_color_manual(values = c("red")) +
+  # scale_fill_manual(values = c("red")) +
+  geom_density(color = "#7ca982",fill = "#7ca982",alpha = .15, linewidth = .4) +
+   # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  theme_minimal() +
+    labs(
+    title = "Density plot - randome Effects",
+    # subtitle = "Fay–Herriot model",
+    x = "randome effects",
+    y = "Desnity",
+    # caption = "Source: household survey + census"
+  )
+
+plot_grid(p1,p2,p3,p4,nrow = 2,ncol = 2)
+```
+
+```{r}
+p1 <- p_dig_BHF_comp$scatter_Mean
+
+p2 <- p_dig_BHF_comp$scatter_Mean +
+  geom_smooth(aes(color = "Reg. line"), method = "lm", se = FALSE) +
+  scale_color_manual(values = c("Reg. line" = "#4e6b57", "Intersection" = "#b5c5b4")) +
+  theme_minimal() +
+  labs(
+    title = "Density plot - standardized Residuals",
+    x = "standardized Residuals",
+    y = "Density",
+    color = ""
+  )
+
+p3 <- p_dig_BHF_comp$line_Mean
+
+p4 <- p_dig_BHF_comp$line_Mean +
+  # Override layer colors to be mapped instead of fixed
+  # geom_line(aes(color = c("Direct", "Model-based"))) +
+  geom_line(size = 1,alpha = .3) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#4e6b57","#b5c5b4")) +
+  theme_minimal() +
+  labs(
+    title = "Density plot - Random Effects",
+    x = "Random effects",
+    y = "Density",
+    color = "Method"
+  )
+
+p5 <- p_dig_BHF_comp$ordered_CV_Mean
+
+p6 <- p_dig_BHF_comp$ordered_CV_Mean +
+  scale_color_manual(values = c("#4e6b57","#b5c5b4")) +
+  theme_minimal() +
+    labs(
+    title = "Density plot - randome Effects",
+    # subtitle = "Fay–Herriot model",
+    x = "randome effects",
+    y = "Desnity",
+    # caption = "Source: household survey + census"
+  )
+
+plot_grid(p1,p2,p3,p4,p5,p6,nrow = 3,ncol = 2)
+```
 
 

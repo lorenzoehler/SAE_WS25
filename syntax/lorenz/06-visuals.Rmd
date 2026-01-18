@@ -1,0 +1,388 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(cowplot)
+library(sf)
+```
+
+# loading data 
+
+```{r}
+dat_MSE <- readRDS("../../data_raw/simulation/processed/df_MSE_long.RDS")
+dat_estimate <- readRDS("../../data_raw/simulation/processed/df_estimates_long.RDS")
+
+map <- read_sf("../../data_raw/shape/bol_adm_mdrt_2013/bol_admbnd_adm2_mdrt_2013_v01.shp")
+map <- map %>% rename(ID_prov = ADM2_PCODE )
+
+```
+
+## 
+```{r}
+colo <- list(
+  AP = c("#FBBF24", "#22D3EE", "#FB7185", "#E5E7EB"),
+  BP = c("#E5E7EB", "#38BDF8", "#A3E635"),
+  CP = c("#FACC15", "#22D3EE", "#4ADE80", "#FB923C", "#F472B6")
+)
+```
+
+
+
+```{r}
+df_MSE_plot <- dat_MSE %>% 
+  group_by(ID_prov,method) %>% 
+  summarise(mean = mean(MSE))
+```
+
+```{r}
+dat_tmp <- df_MSE_plot %>% 
+  filter(method == "BHF") %>% 
+  mutate(mean_BHF_MSE = mean) %>% 
+  select(ID_prov,mean_BHF_MSE)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+
+dat_tmp <- df_MSE_plot %>% 
+  filter(method == "Dir") %>% 
+  mutate(mean_Dir_MSE = mean) %>% 
+  select(ID_prov,mean_Dir_MSE)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+
+dat_tmp <- df_MSE_plot %>% 
+  filter(method == "FH") %>% 
+  mutate(mean_FH_MSE = mean) %>% 
+  select(ID_prov,mean_FH_MSE)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+```
+### direct vs FH vs BHF
+
+```{r}
+global_limits <- summary(df_MSE_plot$mean)[c(1,6)]
+
+### define styel
+map_style_beamer <- list(
+  scale_fill_gradientn(
+    colours = c("#134E4A", "#2A9D8F", "#FACC15"),
+    na.value = "#334155",
+    limits = global_limits,
+    name = "Mean MSE"
+    
+  ),
+  coord_sf(datum = NA),
+  theme(
+    legend.position = "right",
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = NA, colour = NA),
+    plot.background  = element_rect(fill = NA, colour = NA)
+  )
+)
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = mean_BHF_MSE)) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+```
+
+
+```{r}
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = mean_BHF_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = mean_Dir_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Direct")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = mean_FH_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+cowplot::plot_grid(p1,p2,p3,legend_map)
+```
+
+### FH vs BHF
+
+```{r}
+global_limits <- df_MSE_plot %>% filter(method != "Dir") %>% pull(mean) %>% range()
+
+### define styel
+map_style_beamer <- list(
+  scale_fill_gradientn(
+    colours = c("#134E4A", "#2A9D8F", "#FACC15"),
+    na.value = "#334155",
+    limits = global_limits,
+    name = "Mean MSE"
+    
+  ),
+  coord_sf(datum = NA),
+  theme(
+    legend.position = "right",
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = NA, colour = NA),
+    plot.background  = element_rect(fill = NA, colour = NA)
+  )
+)
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = mean_BHF_MSE)) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+```
+
+
+```{r}
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = mean_BHF_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = mean_FH_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+cowplot::plot_grid(p1,p3,legend_map,nrow = 1)
+```
+
+## only sample one
+
+```{r}
+df_MSE_plot <- dat_MSE %>% 
+  filter(sample == "001")
+
+df_MSE_plot <- df_MSE_plot %>% select(ID_prov,method,MSE)
+
+### processsing for first sample
+dat_tmp <- df_MSE_plot %>% 
+  filter(method == "BHF") %>% 
+  mutate(BHF_MSE_s001 = MSE) %>% 
+  select(ID_prov,BHF_MSE_s001)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+
+dat_tmp <- df_MSE_plot %>% 
+  filter(method == "Dir") %>% 
+  mutate(Dir_MSE_s001 = MSE) %>% 
+  select(ID_prov,Dir_MSE_s001)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+
+dat_tmp <- df_MSE_plot %>% 
+  filter(method == "FH") %>% 
+  mutate(FH_MSE_s001 = MSE) %>% 
+  select(ID_prov,FH_MSE_s001)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+```
+
+
+### FH vs BHF
+
+```{r}
+global_limits <- df_MSE_plot %>% filter(method != "Dir") %>% pull(MSE) %>% range()
+
+### define styel
+map_style_beamer <- list(
+  scale_fill_gradientn(
+    colours = c("#134E4A", "#2A9D8F", "#FACC15"),
+    na.value = "#334155",
+    limits = global_limits,
+    name = "Mean MSE"
+    
+  ),
+  coord_sf(datum = NA),
+  theme(
+    legend.position = "right",
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = NA, colour = NA),
+    plot.background  = element_rect(fill = NA, colour = NA)
+  )
+)
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = mean_BHF_MSE)) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+```
+
+
+```{r}
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = mean_BHF_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF - sample 001")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = mean_FH_MSE)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH - sample 001")
+
+cowplot::plot_grid(p1,p3,legend_map,nrow = 1)
+```
+
+
+### plotting estimates
+### FH vs Direct
+
+```{r}
+df_estimate_plot <- dat_estimate %>% 
+  group_by(ID_prov,method) %>% 
+  summarise(mean_estimate = mean(estimate),
+            var_estimate = var(estimate))
+
+df_estimate_plot <- df_estimate_plot %>% select(ID_prov,method,mean_estimate,var_estimate)
+
+### processsing for first sample
+# dat_tmp <- df_estimate_plot %>% 
+#   filter(method == "BHF") %>% 
+#   mutate(BHF_MSE_s001 = MSE) %>% 
+#   select(ID_prov,BHF_MSE_s001)
+# 
+# map <- map %>% left_join(dat_tmp,by = "ID_prov")
+
+dat_tmp <- df_estimate_plot %>% 
+  filter(method == "Dir") %>% 
+  mutate(mean_estimate_Dir = mean_estimate,
+         var_estimate_Dir = var_estimate) %>% 
+  select(ID_prov,mean_estimate_Dir,var_estimate_Dir)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+
+dat_tmp <- df_estimate_plot %>% 
+  filter(method == "FH") %>% 
+  mutate(mean_estimate_FH = mean_estimate,
+         var_estimate_FH = var_estimate) %>% 
+  select(ID_prov,mean_estimate_FH,var_estimate_FH)
+
+map <- map %>% left_join(dat_tmp,by = "ID_prov")
+```
+
+```{r}
+global_limits_mean <- df_estimate_plot %>% pull(mean_estimate) %>% range()
+global_limits_var <- df_estimate_plot %>% pull(var_estimate) %>% range()
+
+### define styel
+map_style_beamer <- list(
+  scale_fill_gradientn(
+    colours = c("#134E4A", "#2A9D8F", "#FACC15"),
+    na.value = "#334155",
+    limits = global_limits_mean,
+    name = "Estimate"
+    
+  ),
+  coord_sf(datum = NA),
+  theme(
+    legend.position = "right",
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = NA, colour = NA),
+    plot.background  = element_rect(fill = NA, colour = NA)
+  )
+)
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = mean_estimate_Dir)) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+```
+
+
+```{r}
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = mean_estimate_Dir)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Dir")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = mean_estimate_FH)) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+map$mean_estimate_diff <- map$mean_estimate_Dir - map$mean_estimate_FH
+
+cowplot::plot_grid(p1,p3,legend_map,nrow = 1)
+```
+
+```{r}
+map_style_beamer <- list(
+  scale_fill_gradientn(
+    colours = c("#22D3EE", "#0F172A", "#FB7185"),
+    na.value = "#334155",
+    name = "Estimate"
+    
+  ),
+  coord_sf(datum = NA),
+  theme(
+    legend.position = "right",
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = NA, colour = NA),
+    plot.background  = element_rect(fill = NA, colour = NA)
+  )
+)
+
+
+ggplot(map) +
+  geom_sf(aes(fill = mean_estimate_diff)) +
+  map_style_beamer +
+  # theme(legend.position = "none") +
+  labs(title = "Difference dir - FH")
+```
+
+
+
+

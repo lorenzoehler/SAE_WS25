@@ -111,14 +111,24 @@ saveRDS(dat,"../../data_raw/large_files/dat_preprocessing-01.RDS")
 
 # draw sample for model building
 ```{r}
+dat <- readRDS("../../data_raw/large_files/dat_preprocessing-01.RDS")
 set.seed(420)
 dat <- dat[!is.na(dat$aestudio),]
 
+dat_sampling <- data.frame(
+  "row" = 1:nrow(dat),
+  "ID_prov" = dat$ID_prov
+)
+  
+
 ### first smaple for modeling
-sample_model_building <- dat %>%
+list <- dat_sampling %>%
   group_by(ID_prov) %>%
   slice_sample(n = 20) %>%
   ungroup()
+
+# sample <- dat[list$row,]
+# sample$aestudio %>% is.na() %>% table()
 
 ## save the sampling for model building
 saveRDS(sample,"../../data_raw/samples/sample_for_model_building.RDS")
