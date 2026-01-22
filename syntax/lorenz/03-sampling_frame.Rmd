@@ -29,7 +29,7 @@ dat <- readRDS("../../data_raw/2024_census/processed/dat_dummyCoding.RDS")
 ```{r}
 #### sample size for simulation
 n_size_simulation <- 200
-path_folder_samples <- "../../data_raw/samples/transformed/"
+path_folder_samples <- "../../data_raw/samples/transformed-2/"
 
 ## only draw samples with aestudio value
 dat <- dat[!is.na(dat$aestudio),]

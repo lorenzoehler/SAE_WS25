@@ -1,0 +1,426 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+This script serves as a playing ground to figure out which variables serve best to build a good model, to predict our dependend variable. 
+
+```{r}
+remove(list = ls())
+library(reactable)
+library(sf)
+library(data.table)
+library(tidyverse)
+```
+
+```{r}
+sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+```
+```{r}
+## how many colums are there
+sample %>% dim()
+```
+
+we have 164 variables
+
+# selection
+
+## filter for NAs
+filter for variables which have lots of NAs 
+
+```{r}
+dat_table_nas <- tibble(
+  "colnames" = colnames(sample),
+  "pecentageNAs" = sapply(
+    sample,
+    FUN = function(x)
+      round(mean(is.na(x)), 3)
+  )
+)
+
+hist(dat_table_nas$pecentageNAs,breaks = 40)
+reactable(dat_table_nas,filterable = T,compact = T,defaultPageSize = 15)
+```
+## filter NAs below .5
+because we need values to actually contain information we will only take a look at the variables, that have at least 50% not NA
+
+```{r}
+### leads to deletion of 
+(dat_table_nas$pecentageNAs > .5) %>% sum()
+
+## how many 
+dat_selection <- dat_table_nas %>% filter(pecentageNAs < .5)
+```
+```{r}
+```
+
+
+
+# model with single predictor
+In the next step i will run just a single model to get a rough idea of how well two variables are connected and could be used for prediction
+
+Because of simplicity I will just ran a numeric and factorial model for each variable. I will exclude the variables which have way to many levels (over 500).
+This loop either jumps the variable, if the variable only has 1 level or over 500.
+
+
+```{r}
+list_variables <- dat_selection$colnames
+
+dat_ko_variables <- data_frame(
+  "variable" = character(),
+  "r_squared_num" = character(),
+  "p_value_num" = character(),
+  "r_squared_factor" = character(),
+  "p_value_factor" = character(),
+  "n_fac_lelves" = character(),
+  "min" = character(),
+  "qnt_1st" = character(),
+  "median" = character(),
+  "mean" = character(),
+  "qnt_3rd" = character(),
+  "max" = character(),
+  "NA_percentage" = character()
+)
+
+for (i in 1:length(list_variables)) {
+  tmp_object <- list_variables[i]
+  tmp_variable_num <- sample[[tmp_object]]
+  tmp_variable_fac <- tmp_variable_num %>% as.factor()
+  tmp_length_variable <- table(tmp_variable_fac) %>% length()
+  
+  print(paste0("now doing number: ", i))
+  
+  ### dont run model if more then 15 factor
+  if (tmp_length_variable > 500) {
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = NA,
+      "p_value_num" = NA,
+      "r_squared_factor" = NA,
+      "p_value_factor" = NA,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+    print("early exit, too many")
+    next
+    
+  } else if (tmp_length_variable <= 1) {
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = NA,
+      "p_value_num" = NA,
+      "r_squared_factor" = NA,
+      "p_value_factor" = NA,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+    print("early exit, one or less")
+    next
+    
+  } else {
+    formula <- as.formula(paste("aestudio ~", tmp_object))
+    model_num <- lm(sample$aestudio ~ tmp_variable_num)
+    model_fac <- lm(sample$aestudio ~ tmp_variable_fac)
+    
+    r_squared_num <- summary(model_num)$r.squared
+    p_value_num <- summary(model_num)$coefficients[1, 4]
+    
+    r_squared_factor <- summary(model_fac)$r.squared
+    p_value_factor <- summary(model_fac)$coefficients[1, 4]
+
+    tmp_data <- data_frame(
+      "variable" = tmp_object,
+      "r_squared_num" = r_squared_num,
+      "p_value_num" = p_value_num,
+      "r_squared_factor" = r_squared_factor,
+      "p_value_factor" = p_value_factor,
+      "n_fac_lelves" = tmp_length_variable,
+      "min" = summary(tmp_variable_num)[1],
+      "qnt_1st" = summary(tmp_variable_num)[2],
+      "median" = summary(tmp_variable_num)[3],
+      "mean" = summary(tmp_variable_num)[4],
+      "qnt_3rd" = summary(tmp_variable_num)[5],
+      "max" = summary(tmp_variable_num)[6],
+      "NA_percentage" = mean(is.na(tmp_variable_num))
+    )
+    dat_ko_variables <- rbind(dat_ko_variables, tmp_data)
+  }
+}
+
+```
+
+```{r}
+## convert column to numeric
+dat_ko_variables$mean <- dat_ko_variables$mean %>% as.numeric() 
+
+### round variables to 3 digits after 0 
+dat_ko_variables <- dat_ko_variables %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+dat_ko_variables %>% reactable(.,compact = T, filterable = T,defaultPageSize = 20)
+```
+
+```{r}
+dat_ko_variables <- dat_ko_variables[order(dat_ko_variables$r_squared_factor,decreasing = T),]
+```
+
+## save as excel
+For exploratory purposes I will export the data frame as an excel.   
+An older version of this exists which was used to select the variables, it has the suffix _filled. 
+
+```{r}
+library(openxlsx)
+write.xlsx(dat_ko_variables,"../../data_raw/2024_census/processed/dat_ko_variables_selection.xlsx")
+```
+
+# combined model
+
+```{r}
+## remove aestudio
+dat_ko_variables_selection <- dat_ko_variables %>% dplyr::filter(variable != "aestudio")
+
+### remove variables with high fac levels
+dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$n_fac_lelves < 15,]
+
+### remove variables with high NA-ratio
+dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$NA_percentage < .25,]
+
+### remove variables, which are too close conceptually
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in%  c("p41a_nivel","p41b_curso","p41a_nivel_act","p41b_curso_act","nivel_edu"))
+```
+
+```{r}
+### save to create correlation matrix only for these
+saveRDS(dat_ko_variables_selection$variable,"../../data_raw/misc/list_variables_seleciton.RDS")
+```
+
+```{r}
+### remove highly correlated items (9 gorups identified in script B)
+
+# highly correlated with p28_cn, 
+tmp_variables <- "p29_ci"
+
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with p30f_autome, 
+tmp_variables <- "p30g_casera"
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with edad, 
+tmp_variables <- c("g_edad","g_edad_bol","gedadedu")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with pet_19, 
+tmp_variables <- c("condact_19","pet_13","pea_13","condact_13","ft_19")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with pet_19, 
+tmp_variables <- c("condact_19","pet_13","pea_13","condact_13","ft_19")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with ocu_1d_13, 
+tmp_variables <- c("p49_ocu_1d","ocu_1d_19")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with p50_catocu_13, 
+tmp_variables <- c("p50_semp")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with v18f_refri, 
+tmp_variables <- c("v18g_micro","v18j_lavadora","v19c_compu","v19e_inetfijo","v19b_tv","v19g_tvcable")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+# highly correlated with v19d_celular, 
+tmp_variables <- c("v19f_inetmovil","v19e_f","v19h_d")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+### remove because of singularity 
+tmp_variables <- c("v02_condocup")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+### remove municipality codes 
+tmp_variables <- c("dep_res_cod","dep_res5_cod","dep_lab_cod","imun","idep","dep_nac_cod")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+## too close conceptually to our construct 
+tmp_variables <- c("p38_asiste", "asiste")
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
+                                                                      tmp_variables)
+
+
+candidates <- dat_ko_variables_selection[,"variable"]
+
+
+sample <- sample %>% as.data.frame()
+sample_candidates <- sample[,c("aestudio",candidates$variable) %in% colnames(sample)]
+
+formula <- paste("aestudio ~",paste(c("p26_edad",candidates$variable),collapse =  " + " ))
+formula <- formula %>% as.formula()
+```
+
+# linear models
+
+```{r}
+# sample$p332_idiohab2_cod[is.na(sample$p332_idiohab2_cod)] <- "Missing"
+### replace all NAs with Missing, so its its own factor
+## becase sample_candidates[,candidates$variable] %>% na.omit()
+## in a big shrinkage of the data frame
+sample_candidates[,candidates$variable][is.na(sample_candidates[,candidates$variable])] <- "Missing"
+
+## convert all of them to factors 
+for (col in candidates$variable) {
+  sample_candidates[[col]] <- factor(sample_candidates[[col]])
+}
+lm(formula = formula,data = sample_candidates) %>% summary()
+```
+
+
+## step AIC
+
+### backward
+```{r}
+model_full <- lm(formula = formula,data = sample_candidates)
+model_null <- lm(formula = aestudio ~ 1,data = sample_candidates)
+# model_full %>% summary()
+
+model_backward <- step(model_full,direction = "backward",trace = 0)
+# model_backward %>% summary()
+```
+
+
+```{r}
+model_forward <- step(model_null,scope = formula, direction = "forward", trace = 0)
+# model_forward %>% summary()
+```
+
+```{r}
+model_both <- step(model_null,scope = formula, direction = "both", trace = 0)
+# model_both %>% summary()
+```
+
+```{r}
+model_backward$call %>% print() 
+model_forward$call %>% print() 
+model_both$call %>% print() 
+```
+
+
+Result of the backwards selection:
+lm(formula = aestudio ~ p26_edad + ocu_1d_13 + p40_lee + p53_ecivil + 
+    p42d_comuni + v11_basura + v06_piso + p31_afiliado + p30b_caja + 
+    v04_revoq + v18c_auto + v18a_bici + v18h_calefon + p37_lugres5 + 
+    p25_sexo + v20a_emi + v12_cocina + pet_19, data = sample_candidates)
+
+forwards    
+lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v06_piso + 
+    p31_afiliado + v11_basura + p53_ecivil + p25_sexo + v04_revoq + 
+    p42d_comuni + v12_cocina + v18a_bici + p30b_caja + p37_lugres5 + 
+    v18c_auto + v18h_calefon + pet_19 + v20a_emi + v08_aguadist, 
+    data = sample_candidates)
+
+both
+lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v06_piso + 
+    p31_afiliado + v11_basura + p53_ecivil + p25_sexo + v04_revoq + 
+    p42d_comuni + v12_cocina + v18a_bici + p30b_caja + p37_lugres5 + 
+    v18c_auto + v18h_calefon + pet_19 + v20a_emi + v08_aguadist, 
+    data = sample_candidates)
+
+
+## step BIC    
+    
+```{r}
+model_backward_BIC <- step(model_full,direction = "backward",trace = 0, k = log(nrow(sample_candidates)))
+# model_backward_BIC %>% summary()
+```
+
+```{r}
+model_forward_BIC <- step(model_null,scope = formula, direction = "forward",trace = 0, k = log(nrow(sample_candidates)))
+# model_forward_BIC %>% summary()
+```
+
+```{r}
+model_both_BIC <- step(model_null,scope = formula, direction = "both", trace = 0,k =  log(nrow(sample_candidates)))
+# model_both_BIC %>% summary()
+```
+
+```{r}
+model_backward_BIC$call %>% print() 
+model_forward_BIC$call %>% print() 
+model_both_BIC$call %>% print() 
+```
+
+Backward
+lm(formula = aestudio ~ p26_edad + ocu_1d_13 + p40_lee + urbrur + 
+    p30b_caja + v04_revoq + v18c_auto + v18h_calefon + p25_sexo + 
+    v12_cocina, data = sample_candidates)
+
+Forward
+lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v04_revoq + 
+    p30b_caja + p25_sexo + urbrur, data = sample_candidates)
+    
+Both
+lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v04_revoq + 
+    p30b_caja + p25_sexo + urbrur, data = sample_candidates)
+
+
+```{r}
+## covariats for the AIC 
+covariates <- names(model_both$coefficients)
+covariates <- covariates[covariates != "(Intercept)"]
+covariates %>% length()
+covariates
+
+
+## covariats for the BIC 
+covariates <- names(model_both_BIC$coefficients)
+covariates <- covariates[covariates != "(Intercept)"]
+covariates %>% length()
+covariates
+
+```
+
+
+
+

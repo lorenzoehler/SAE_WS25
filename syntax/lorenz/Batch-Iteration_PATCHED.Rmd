@@ -366,7 +366,16 @@ for (i in seq_along(sample_files)) {
       )
     }, error = function(e) e)
 
-    if (!inherits(BHF_model, "error")) {
+    if (!inherits(BHF_model, "error")) {fh_model_full <- fh(
+fixed = fh_formula,
+vardir = "Var_Mean",
+combined_data = combined_data,
+domains = "ID_prov",
+method = "reml",
+MSE = TRUE
+)
+
+fh_model_full$MSE$FH %>% mean()
       res_row$bhf_ok <- TRUE
       res_row$bhf_mean_mse <- safe_mean(BHF_model$MSE$Mean)
       saveRDS(BHF_model, file.path(DIR_MODELS, paste0(sample_name, "_BHF.rds")))

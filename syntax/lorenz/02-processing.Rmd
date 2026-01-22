@@ -52,19 +52,67 @@ sheets %in% colnames(sample)
 
 ```{r}
 ### for debugging
-# column <- sample[[sheets[i]]]
-# mapping_sheet <- tmp_sheet
-# name_variable <- sheets[i]
+tmp_sheet <- read.xlsx(xlsxFile = path_excel,sheet = sheets_selection[i]) 
+mapping_sheet <- tmp_sheet %>% mutate(label = paste0(prefix, label)) %>% select(value, label)
 
+column <- sample[[sheets_selection[i]]]
+name_variable <- sheets_selection[i]
+
+# fun.mappingDummyCoding <- function(column, name_variable, mapping_sheet) {
+# 
+#   ### create rest column
+#   rest_cat <- paste0(name_variable, "_REST")
+#   
+#   ### all the possible levels after dummy coding
+#   levels_out <- c(unique(mapping_sheet$label), rest_cat)
+# 
+#   ### initialize empty matrix with all 0 
+#   out <- matrix(
+#     0L,
+#     nrow = length(column),
+#     ncol = length(levels_out),
+#     dimnames = list(NULL, levels_out)
+#   )
+# 
+#   # match observed values to mapping sheet ==> output is matrix with position of the category that matches input in mappping frame
+#   idx <- match(column, mapping_sheet$value)
+# 
+#   # rows that have a mapping
+#   valid <- !is.na(idx)
+#   # all(valid == TRUE) ### could be used to only create rest category, if some dont match 
+#   
+#   # for all valid observations we match values to the matrix
+#   # then the match in levels out gets determined
+#   col_idx <- match(mapping_sheet$label[idx[valid]], levels_out)
+# 
+#   # out at this point is still just zeros
+#   # the col_idx column then indicats which of the colums gets the one for the respective row 
+#   out[cbind(which(valid), col_idx)] <- 1L
+# 
+#   # fill rest category
+#   out[!valid, rest_cat] <- 1L
+# 
+# as.data.frame(out)
+# }
+
+
+### now does not uncesserily create REST category
 fun.mappingDummyCoding <- function(column, name_variable, mapping_sheet) {
 
-  ### create rest column
-  rest_cat <- paste0(name_variable, "_REST")
-  
-  ### all the possible levels after dummy coding
-  levels_out <- c(unique(mapping_sheet$label), rest_cat)
+  # Determine which rows are mapped
+  idx <- match(column, mapping_sheet$value)
+  valid <- !is.na(idx)
 
-  ### initialize empty matrix with all 0 
+  # Start with levels from mapping sheet
+  levels_out <- unique(mapping_sheet$label)
+
+  # Only add REST category if there are unmatched values
+  if (any(!valid)) {
+    rest_cat <- paste0(name_variable, "_Missing")
+    levels_out <- c(levels_out, rest_cat)
+  }
+
+  # Initialize output matrix
   out <- matrix(
     0L,
     nrow = length(column),
@@ -72,40 +120,35 @@ fun.mappingDummyCoding <- function(column, name_variable, mapping_sheet) {
     dimnames = list(NULL, levels_out)
   )
 
-  # match observed values to mapping sheet ==> output is matrix with position of the category that matches input in mappping frame
-  idx <- match(column, mapping_sheet$value)
+  # Fill in dummy coding for valid matches
+  if (any(valid)) {
+    col_idx <- match(mapping_sheet$label[idx[valid]], levels_out)
+    out[cbind(which(valid), col_idx)] <- 1L
+  }
 
-  # rows that have a mapping
-  valid <- !is.na(idx)
-  # all(valid == TRUE) ### could be used to only create rest category, if some dont match 
-  
-  # for all valid observations we match values to the matrix
-  # then the match in levels out gets determined
-  col_idx <- match(mapping_sheet$label[idx[valid]], levels_out)
+  # Fill REST category if needed
+  if (any(!valid)) {
+    out[!valid, rest_cat] <- 1L
+  }
 
-  # out at this point is still just zeros
-  # the col_idx column then indicats which of the colums gets the one for the respective row 
-  out[cbind(which(valid), col_idx)] <- 1L
-
-  # fill rest category
-  out[!valid, rest_cat] <- 1L
-
-as.data.frame(out)
+  as.data.frame(out)
 }
-
 
 
 ```
 
+lm(formula = aestudio ~ p26_edad + ocu_1d_13 + p40_lee + urbrur + 
+    p30b_caja + v04_revoq + v18c_auto + v18h_calefon + p25_sexo + 
+    v12_cocina, data = sample_candidates)
 
 ```{r}
 ### defining variables 
 path_excel <- "../../data_raw/mapping/dummy_coding.xlsx"
 
 ### select variables which are of interst for now 
-sheets_selection <- sheets[c(1,4,5,6)]
+# sheets_selection <- sheets[c(1,4,5,6)]
 # paste0(sheets_selection,collapse = '","')  %>% cat()
-sheets_selection <- c("ocu_1d_13","p25_sexo","p40_lee","urbrur")
+sheets_selection <- c("ocu_1d_13","p25_sexo","p40_lee","urbrur","p30b_caja","v04_revoq","v18c_auto","v18h_calefon","v12_cocina")
 
 ### initialize empy data frame
 size <- nrow(sample)
@@ -127,8 +170,6 @@ for(i in seq_along(sheets_selection)){
 sample_transformed <- sample %>% select(ID_prov,aestudio,p26_edad) %>% cbind(.,dummy_coding)
 
 saveRDS(sample_transformed,"../../data_raw/samples/sample_for_model_building_transformed.RDS")
-
-# dummy_coding
 ```
 
 
@@ -137,11 +178,17 @@ saveRDS(sample_transformed,"../../data_raw/samples/sample_for_model_building_tra
 For now the recoding of the dummy variables, always creats a rest category and a column for each level -- which does not always makes sense, thus some of the variables are deleted before being put into the equation, this is the one we will use for now. 
 
 ```{r}
-# paste0(colnames(sample_transformed),collapse =  " + ") ### delete the rest categories in some cases, and for the true bin ones, decide for one
-model <- lm(aestudio ~ p26_edad + ocu_military + ocu_manager + ocu_professional + ocu_technician + ocu_adminSupport + ocu_serviceSales + ocu_agriculture + ocu_construction + ocu_operators + ocu_unskilled + ocu_NaN + ocu_1d_13_REST + sex_female + read_knowing + urbrur_urban
-            ,data = sample_transformed)
+# paste0(colnames(sample_transformed),collapse =  " + ") 
+### delete the rest categories in some cases, and for the true bin ones, decide for one
+model <- lm(aestudio ~  p26_edad + ocu_military + ocu_manager + ocu_professional + ocu_technician + ocu_adminSupport + ocu_serviceSales + ocu_agriculture + ocu_construction + ocu_operators + ocu_unskilled + ocu_NaN + ocu_1d_13_Missing + sex_male + read_knowing + read_not_knowing + read_not_specified + urbrur_urban + health_insurance_yes  + health_insurance_not_specified + p30b_caja_Missing + interior_plastered_yes + v04_revoq_Missing + car_yes + + car_not_specified + v18c_auto_Missing + water_heater_yes + water_heater_not_specified + v18h_calefon_Missing + kitchen_yes + v12_cocina_Missing, data = sample_transformed)
 
 model %>% summary ()
+
+model_step <- step(model,direction = "both",trace = 0)
+model_step %>% summary()
+
+model_step$call
+
 ```
 
 # transform variables of census data
@@ -186,14 +233,16 @@ covariats_factors <- c(
   "ocu_adminSupport",
   "ocu_serviceSales",
   "ocu_agriculture",
-  "ocu_construction",
-  "ocu_operators",
   "ocu_unskilled",
-  "ocu_NaN",
-  "ocu_1d_13_REST",
-  "sex_female",
+  "sex_male",
   "read_knowing",
-  "urbrur_urban"
+  "urbrur_urban",
+  "health_insurance_yes",
+  "interior_plastered_yes",
+  "v04_revoq_Missing",
+  "car_yes",
+  "water_heater_yes",
+  "kitchen_yes"
 )
 
 
@@ -207,6 +256,14 @@ dat_census_aux <- dat_transformed %>%
 
 saveRDS(dat_census_aux,"../../data_raw/2024_census/processed/census_aux_data_aggregated.RDS")
 
+```
+
+
+# True aestudio for provinces for comparison 
+
+```{r}
+true_mean <- dat %>% group_by(ID_prov) %>% reframe(mean_aestudio_true = mean(aestudio,na.rm = T))
+saveRDS(true_mean,"../../data_raw/misc/true_mean_aestudio.RDS")
 ```
 
 
