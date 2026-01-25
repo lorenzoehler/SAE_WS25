@@ -119,7 +119,7 @@ df_estimates_long <- df_estimates_long %>%
   )
 
 
-saveRDS(df_estimates_long,"../../data_raw/simulation/processed/df_estimates_long.RDS")
+# saveRDS(df_estimates_long,"../../data_raw/simulation/processed/df_estimates_long.RDS")
 
 ### load true values 
 true_values <- readRDS("../../data_raw/misc/true_mean_aestudio.RDS")
@@ -133,6 +133,8 @@ for(i in 1:nrow(df_estimates_long)){
   tmp_comp_value <- true_values$mean_aestudio_true[which(current_province == true_values$ID_prov)]
   df_estimates_long$diff_true[i] <- current_value - tmp_comp_value
 }
+
+saveRDS(df_estimates_long,"../../data_raw/simulation/processed/df_estimates_long.RDS")
 
 
 
@@ -174,4 +176,135 @@ dat$bhf_mean_mse %>% mean()
 
 ## compare with true valu
 
+## model drift 
+lst_files <- list.files("results_batch/models_rds",full.names = T)
+lst_BHF_files <- grep(pattern = "BHF",x = lst_files,value = T)
+lst_FH_files <- grep(pattern = "FH_full",x = lst_files,value = T)
 
+list_BHF_models <- lapply(lst_BHF_files, function(x) readRDS(x))
+list_FH_models <- lapply(lst_FH_files, function(x) readRDS(x))
+
+beta_BHF_long <- do.call(
+  rbind,
+  lapply(seq_along(list_BHF_models), function(i) {
+    beta <- list_BHF_models[[i]]$model$coefficients$fixed
+    data.frame(
+      sample = i,
+      term   = names(beta),
+      value  = as.numeric(beta),
+      row.names = NULL
+    )
+  })
+)
+unique(beta_BHF_long$term)
+
+beta_BHF_long %>% 
+  # filter(term == "ocu_military") %>% 
+ggplot(.,aes(x = sample, y = value, color = term)) +
+  geom_line() +
+  theme_classic()
+
+
+beta_FH_long <- do.call(
+  rbind,
+  lapply(seq_along(list_FH_models), function(i) {
+    beta <- list_FH_models[[i]]$model$coefficients$coefficients
+    data.frame(
+      sample = i,
+      term   = rownames(list_FH_models[[i]]$model$coefficients),
+      value  = as.numeric(beta),
+      row.names = NULL
+    )
+  })
+)
+
+sample_001_FH$model$coefficients
+
+ggplot(beta_FH_long,aes(x = sample, y = value, color = term)) +
+  geom_line(alpha = .5) +
+  theme_classic()
+
+
+sample_022_FH <- readRDS("results_batch/models_rds/sample_022_FH_full.rds")
+# sample_022_FH$model$coefficients
+
+fh_fixed_full <- Mean ~ mean_p26_edad + share_ocu_military + share_ocu_professional +
+  share_ocu_technician + share_ocu_adminSupport + share_ocu_construction +
+  share_ocu_operators + share_ocu_NaN + share_read_knowing
+
+test <- sample_022_FH$framework$combined_data
+lm(fh_fixed_full,data = test)
+
+sample_022_BHF <- readRDS("results_batch/models_rds/sample_022_BHF.rds")
+
+bhf_fixed_base <- aestudio ~ p26_edad + ocu_military + ocu_professional +
+  ocu_technician + ocu_adminSupport + ocu_construction +
+  ocu_operators + ocu_NaN + read_knowing
+
+test <- sample_022_BHF$framework$smp_data
+lm(bhf_fixed_base,data = test)
+
+
+######## plot coefficients over samples ########
+df_optics <- beta_BHF_long %>%
+  group_by(term) %>%
+  summarise(
+    var_wert = var(value),      # Varianz über die Samples
+    mean_wert = mean(value)     # optional, z.B. für Farbe
+  )
+
+# BHF
+df_optics <- df_optics %>%
+  mutate(
+    alpha = rescale(var_wert, to = c(.7, .2)),   # Alpha zwischen 0.2 und 1
+    color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+  )
+
+beta_plot <- beta_BHF_long %>%
+  left_join(df_optics %>% select(term, alpha, color), by = "term")
+
+coefficiency_consistancy_BFH <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
+  geom_path(aes(color = color),size = 1, alpha = beta_plot$alpha) +
+  scale_color_identity(guide = "legend", labels = beta_plot$term, name = "Term") +
+  theme_classic()
+
+ggsave(filename = "../../output/coefficiency_consistancy_BFH-01.png",
+       coefficiency_consistancy_BFH,       
+       width = 6,      # width in inches
+       height = 4,    # height in inches; make it long enough for 5 plots
+       units = "in",   # units for width/height
+       dpi = 300)
+
+
+
+########### FH ##########
+df_optics <- beta_FH_long %>%
+  group_by(term) %>%
+  summarise(
+    var_wert = var(value),      # Varianz über die Samples
+    mean_wert = mean(value)     # optional, z.B. für Farbe
+  )
+
+
+df_optics <- df_optics %>%
+  mutate(
+    alpha = rescale(var_wert, to = c(.9, .2)),   # Alpha zwischen 0.2 und 1
+    color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+  )
+
+beta_plot <- beta_FH_long %>%
+  left_join(df_optics %>% select(term, alpha, color), by = "term")
+
+coefficiency_consistancy_FH <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
+  geom_path(aes(color = color),size = .9, alpha = beta_plot$alpha) +
+  scale_color_identity(guide = "legend", labels = beta_plot$term, name = "Term") +
+  theme_classic()
+
+ggsave(filename = "../../output/coefficiency_consistancy_FH-01.png",
+       coefficiency_consistancy_FH,       
+       width = 6,      # width in inches
+       height = 4,    # height in inches; make it long enough for 5 plots
+       units = "in",   # units for width/height
+       dpi = 300)
+
+# cor(test %>% select(starts_with("ocu_")))

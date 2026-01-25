@@ -141,7 +141,7 @@ global_limits <- df_MSE_agg_samples_long %>% filter(method!= "Dir") %>% pull(mea
 
 p_map <- ggplot(map) +
   geom_sf(aes(fill = MSE_BHF_mean_samples)) +
-  scale_fill_mse(global_limits) +
+  scale_fill_mse(global_limits,colours = c("#22D3EE", "#0F172A", "#FB7185")) +
   map_style_beamer
 
 legend_map <- get_legend(p_map)
@@ -149,7 +149,7 @@ legend_map <- get_legend(p_map)
 
 p1 <- ggplot(map) +
   geom_sf(aes(fill = MSE_BHF_mean_samples)) +
-  scale_fill_mse(global_limits) +
+  scale_fill_mse(global_limits,colours = c("#22D3EE", "#0F172A", "#FB7185")) +
   map_style_beamer +
   theme(legend.position = "none") +
   labs(title = "BHF")
@@ -157,26 +157,44 @@ p1 <- ggplot(map) +
 
 p2 <- ggplot(map) +
   geom_sf(aes(fill = MSE_FH_mean_samples)) +
-  scale_fill_mse(global_limits) +
+  scale_fill_mse(global_limits,colours = c("#22D3EE", "#0F172A", "#FB7185")) +
   map_style_beamer +
   theme(legend.position = "none") +
   labs(title = "FH")
 
 MSE_mean_FH_BHF_samples_aggre <- plot_grid(p1,p2,legend_map,nrow = 1,rel_widths = c(1,1,.5))
+MSE_mean_FH_BHF_samples_aggre <- ggdraw() +
+  draw_label(
+    "Mittlerer MSE auf provinzieller Ebene",
+    # fontface = "bold",
+    size = 13,
+    x = 0.5,
+    y = 0.98,
+    hjust = 0.5,
+    vjust = 1
+  ) +
+  draw_plot(
+    plot_grid(p1, p2, legend_map,
+              nrow = 1,
+              rel_widths = c(1, 1, .5)),
+    y = 0,
+    height = 0.95
+  )
 
-MSE_mean_FH_BHF_samples_aggre 
+MSE_mean_FH_BHF_samples_aggre
+
 ggsave("../../output/MSE_mean_FH_BHF_samples_aggre-01.svg", 
        plot = MSE_mean_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/MSE_mean_FH_BHF_samples_aggre-01.png", 
        plot = MSE_mean_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 
 ```
@@ -295,16 +313,16 @@ estimate_mean_Dir_FH_BHF_samples_aggre <- plot_grid(p1,p2,p3,legend_map,nrow = 1
 estimate_mean_Dir_FH_BHF_samples_aggre
 ggsave("../../output/estimate_mean_Dir_FH_BHF_samples_aggre-01.svg", 
        plot = estimate_mean_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/estimate_mean_Dir_FH_BHF_samples_aggre.png", 
        plot = estimate_mean_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 
 ```
@@ -349,16 +367,16 @@ estimate_var_Dir_FH_BHF_samples_aggre
 
 ggsave("../../output/estimate_var_Dir_FH_BHF_samples_aggre-01.svg", 
        plot = estimate_var_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/estimate_var_Dir_FH_BHF_samples_aggre.png", 
        plot = estimate_var_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 ```
 # Diff to real value
@@ -432,16 +450,16 @@ diff_true_Dir_FH_BHF_samples_aggre
 
 ggsave("../../output/diff_true_Dir_FH_BHF_samples_aggre-01.svg", 
        plot = diff_true_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/diff_true_Dir_FH_BHF_samples_aggre-01.png", 
        plot = diff_true_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 
 ```
@@ -509,16 +527,16 @@ diff_true_Dir_FH_BHF_s1
 
 ggsave("../../output/diff_true_Dir_FH_BHF_s1-01.svg", 
        plot = diff_true_Dir_FH_BHF_s1,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/diff_true_Dir_FH_BHF_s1-01.png", 
        plot = diff_true_Dir_FH_BHF_s1,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 
 ```
@@ -591,16 +609,16 @@ abs_diff_true_Dir_FH_BHF_samples_aggre
 
 ggsave("../../output/abs_diff_true_Dir_FH_BHF_samples_aggre-01.svg", 
        plot = abs_diff_true_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/abs_diff_true_Dir_FH_BHF_samples_aggre-01.png", 
        plot = abs_diff_true_Dir_FH_BHF_samples_aggre,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 ```
 # other plots 
@@ -610,31 +628,35 @@ ggsave("../../output/abs_diff_true_Dir_FH_BHF_samples_aggre-01.png",
 ```{r}
 tmp_dat <- dat_MSE %>% group_by(sample,method) %>% reframe(mean_MSE = mean(MSE))
 
+tmp_dat <- tmp_dat %>%
+  mutate(method = factor(method, levels = c("FH", "BHF","Dir")))
+
 distance_true_value <- tmp_dat %>% filter(method != "Dir") %>% 
 ggplot(., aes(x = method, y = mean_MSE, fill = method)) +
-  geom_violin(alpha = 0.5) +
-  geom_line(aes(group = sample), alpha = .2)+
-  geom_point(alpha = .1)+
+  geom_violin(alpha = 0.8) +
+  geom_line(aes(group = sample), alpha = .15)+
+  geom_point(alpha = .2)+
   geom_boxplot(width = 0.1, fill="white") +  # Boxplot in der Mitte
-  scale_fill_manual(values = c("red","#7ca982")) +
+  scale_fill_manual(values = c("#7ca982","#F05425")) +
   theme_minimal() +
-  labs(title = "MSE Distribution by Estimator",
-       y = "MSE")
+  labs(title = "",
+       y = "MSE",
+       x = "")
+distance_true_value
 
 
-
-ggsave("../../output/distance_true_value-01.svg", 
+ggsave("../../output/MSE_violin-01.svg", 
        plot = distance_true_value,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
-ggsave("../../output/distance_true_value-01.png", 
+ggsave("../../output/MSE_violin-01.png", 
        plot = distance_true_value,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
 
 ```
@@ -661,28 +683,183 @@ map <- map %>% left_join(df_estimate_agg_samples_wide,by = "ID_prov")
 
 distance_true_value <- ggplot(dat_estimate,aes(x = method,y = diff_true, fill = method)) +
   geom_jitter(alpha = .01) +
-  geom_violin(alpha = .7) +
-  scale_fill_manual(values = c("#7ca982","#334155","red")) +
+  geom_violin(alpha = .8) +
+  scale_fill_manual(values = c("#7ca982","#334155","#F05425")) +
   geom_boxplot(width = 0.1, fill="white") +
-  labs(title = "Distance from the mean estimate for the province to the true mean",
+  labs(title = "Distance from estimates to true provincial mean",
        x = "method",
        y = "difference to true value")+
   theme_minimal()
+distance_true_value
 
 
 ggsave("../../output/distance_true_value-02.svg", 
        plot = distance_true_value,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        device = "svg")
 
 ggsave("../../output/distance_true_value-02.png", 
        plot = distance_true_value,
-       width = 6,      # width in inches
-       height = 4,    # height in inches; make it long enough for 5 plots
-       units = "in",   # units for width/height
+       width = 6,      
+       height = 4,    
+       units = "in",   
        dpi = 300)
+
+
+```
+
+
+## coefficient drift
+
+```{r}
+## compare with true valu
+
+## model drift 
+lst_files <- list.files("results_batch/models_rds",full.names = T)
+lst_BHF_files <- grep(pattern = "BHF",x = lst_files,value = T)
+lst_FH_files <- grep(pattern = "FH_full",x = lst_files,value = T)
+
+list_BHF_models <- lapply(lst_BHF_files, function(x) readRDS(x))
+list_FH_models <- lapply(lst_FH_files, function(x) readRDS(x))
+
+beta_BHF_long <- do.call(
+  rbind,
+  lapply(seq_along(list_BHF_models), function(i) {
+    beta <- list_BHF_models[[i]]$model$coefficients$fixed
+    data.frame(
+      sample = i,
+      term   = names(beta),
+      value  = as.numeric(beta),
+      row.names = NULL
+    )
+  })
+)
+unique(beta_BHF_long$term)
+
+beta_BHF_long %>% 
+  # filter(term == "ocu_military") %>% 
+ggplot(.,aes(x = sample, y = value, color = term)) +
+  geom_line() +
+  theme_classic()
+```
+
+
+```{r}
+beta_FH_long <- do.call(
+  rbind,
+  lapply(seq_along(list_FH_models), function(i) {
+    beta <- list_FH_models[[i]]$model$coefficients$coefficients
+    data.frame(
+      sample = i,
+      term   = rownames(list_FH_models[[i]]$model$coefficients),
+      value  = as.numeric(beta),
+      row.names = NULL
+    )
+  })
+)
+
+sample_001_FH$model$coefficients
+
+ggplot(beta_FH_long,aes(x = sample, y = value, color = term)) +
+  geom_line(alpha = .5) +
+  theme_classic()
+```
+
+### make em pretty
+
+```{r}
+library(scales)
+library(viridis)
+sample_022_FH <- readRDS("results_batch/models_rds/sample_022_FH_full.rds")
+# sample_022_FH$model$coefficients
+
+fh_fixed_full <- Mean ~ mean_p26_edad + share_ocu_military + share_ocu_professional +
+  share_ocu_technician + share_ocu_adminSupport + share_ocu_construction +
+  share_ocu_operators + share_ocu_NaN + share_read_knowing
+
+test <- sample_022_FH$framework$combined_data
+lm(fh_fixed_full,data = test)
+
+sample_022_BHF <- readRDS("results_batch/models_rds/sample_022_BHF.rds")
+
+bhf_fixed_base <- aestudio ~ p26_edad + ocu_military + ocu_professional +
+  ocu_technician + ocu_adminSupport + ocu_construction +
+  ocu_operators + ocu_NaN + read_knowing
+
+test <- sample_022_BHF$framework$smp_data
+lm(bhf_fixed_base,data = test)
+
+
+######## plot coefficients over samples ########
+df_optics <- beta_BHF_long %>%
+  group_by(term) %>%
+  summarise(
+    var_wert = var(value),      # Varianz über die Samples
+    mean_wert = mean(value)     # optional, z.B. für Farbe
+  )
+
+# BHF
+df_optics <- df_optics %>%
+  mutate(
+    alpha = rescale(var_wert, to = c(.7, .2)),   # Alpha zwischen 0.2 und 1
+    color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+  )
+
+beta_plot <- beta_BHF_long %>%
+  left_join(df_optics %>% select(term, alpha, color), by = "term")
+
+coefficiency_consistancy_BFH <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
+  geom_path(aes(color = color),size = 1, alpha = beta_plot$alpha) +
+  scale_color_identity(guide = "legend", labels = beta_plot$term, name = "Term") +
+  theme_classic() +
+  theme(legend.position = "none")
+coefficiency_consistancy_BFH
+
+ggsave(filename = "../../output/coefficiency_consistancy_BFH-01.png",
+       coefficiency_consistancy_BFH,       
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       dpi = 300)
+```
+
+
+```{r}
+########### FH ##########
+df_optics <- beta_FH_long %>%
+  group_by(term) %>%
+  summarise(
+    var_wert = var(value),      # Varianz über die Samples
+    mean_wert = mean(value)     # optional, z.B. für Farbe
+  )
+
+
+df_optics <- df_optics %>%
+  mutate(
+    alpha = rescale(var_wert, to = c(.9, .2)),   # Alpha zwischen 0.2 und 1
+    color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+  )
+
+beta_plot <- beta_FH_long %>%
+  left_join(df_optics %>% select(term, alpha, color), by = "term")
+
+coefficiency_consistancy_FH <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
+  geom_path(aes(color = color),size = .4, alpha = beta_plot$alpha) +
+  scale_color_identity(guide = "legend", labels = beta_plot$term, name = "Term") +
+  theme_classic() + 
+  theme(legend.position = "none")
+
+coefficiency_consistancy_FH
+ggsave(filename = "../../output/coefficiency_consistancy_FH-01.png",
+       coefficiency_consistancy_FH,       
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       dpi = 300)
+
+# cor(test %>% select(starts_with("ocu_")))
 
 
 ```

@@ -30,13 +30,24 @@ library(tidyverse)
 
 ```{r}
 sample <- readRDS("../../data_raw/samples/sample_for_model_building.RDS")
+ncol(sample) ### abzügzlich der 5 nicht inhaltlichen Variablen
 ```
+
 ```{r}
 ## how many colums are there
 sample %>% dim()
 ```
+```{r}
+sample <- sample %>% as.data.frame()
 
-we have 164 variables
+### delete administrative variables
+tmp_variable <- c("i00","idep","iprov","imun","ID_mun","ID_prov")
+sample <- sample[,!colnames(sample) %in% tmp_variable]
+```
+
+
+we have 164 variables, minus the 5 "administrative" ones results in 159 variables 
+
 
 # selection
 
@@ -61,13 +72,12 @@ because we need values to actually contain information we will only take a look 
 
 ```{r}
 ### leads to deletion of 
-(dat_table_nas$pecentageNAs > .5) %>% sum()
+(dat_table_nas$pecentageNAs > .25) %>% sum()
 
 ## how many 
-dat_selection <- dat_table_nas %>% filter(pecentageNAs < .5)
+dat_selection <- dat_table_nas %>% filter(pecentageNAs < .25)
 ```
-```{r}
-```
+
 
 
 
@@ -211,13 +221,15 @@ write.xlsx(dat_ko_variables,"../../data_raw/2024_census/processed/dat_ko_variabl
 dat_ko_variables_selection <- dat_ko_variables %>% dplyr::filter(variable != "aestudio")
 
 ### remove variables with high fac levels
+(dat_ko_variables_selection$n_fac_lelves >= 15) %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$n_fac_lelves < 15,]
 
-### remove variables with high NA-ratio
-dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$NA_percentage < .25,]
+# ### remove variables with high NA-ratio
+# (dat_ko_variables_selection$NA_percentage > .25) %>% sum()
+# dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_selection$NA_percentage < .25,]
 
 ### remove variables, which are too close conceptually
-dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in%  c("p41a_nivel","p41b_curso","p41a_nivel_act","p41b_curso_act","nivel_edu"))
+dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in%  c("p41a_nivel","p41b_curso","p41a_nivel_act","p41b_curso_act","nivel_edu","p38_asiste", "asiste"))
 ```
 
 ```{r}
@@ -226,11 +238,17 @@ saveRDS(dat_ko_variables_selection$variable,"../../data_raw/misc/list_variables_
 ```
 
 ```{r}
-### remove highly correlated items (9 gorups identified in script B)
+# how many covariats currently in there
+dat_ko_variables_selection$variable %>% length()
 
+dat_ko_variables_selection$variable
+```
+
+
+```{r}
+### remove highly correlated items (9 gorups identified in script B)
 # highly correlated with p28_cn, 
 tmp_variables <- "p29_ci"
-
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
@@ -241,54 +259,57 @@ dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %i
 
 # highly correlated with edad, 
 tmp_variables <- c("g_edad","g_edad_bol","gedadedu")
+dat_ko_variables_selection$variable %in% tmp_variables %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 # highly correlated with pet_19, 
-tmp_variables <- c("condact_19","pet_13","pea_13","condact_13","ft_19")
+tmp_variables <- c("condact_19","pet_13","pea_13","condact_13","ft_19") ## condact_13 already filtered out
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 # highly correlated with pet_19, 
-tmp_variables <- c("condact_19","pet_13","pea_13","condact_13","ft_19")
+tmp_variables <- c("condact_19","pet_13","pea_13","condact_13","ft_19") ### all of them already filtered out, only pet_19 in 
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 # highly correlated with ocu_1d_13, 
-tmp_variables <- c("p49_ocu_1d","ocu_1d_19")
+tmp_variables <- c("p49_ocu_1d","ocu_1d_19") ### all already filtered out
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 # highly correlated with p50_catocu_13, 
-tmp_variables <- c("p50_semp")
+tmp_variables <- c("p50_semp") ### already filtered out
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 # highly correlated with v18f_refri, 
 tmp_variables <- c("v18g_micro","v18j_lavadora","v19c_compu","v19e_inetfijo","v19b_tv","v19g_tvcable")
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 # highly correlated with v19d_celular, 
 tmp_variables <- c("v19f_inetmovil","v19e_f","v19h_d")
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 ### remove because of singularity 
 tmp_variables <- c("v02_condocup")
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
 
 ### remove municipality codes 
-tmp_variables <- c("dep_res_cod","dep_res5_cod","dep_lab_cod","imun","idep","dep_nac_cod")
+tmp_variables <- c("dep_res_cod","dep_res5_cod","dep_lab_cod","dep_nac_cod") ### dep_lab_cod already out 
+tmp_variables %in% dat_ko_variables_selection$variable %>% sum()
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
                                                                       tmp_variables)
-
-## too close conceptually to our construct 
-tmp_variables <- c("p38_asiste", "asiste")
-dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in% 
-                                                                      tmp_variables)
-
 
 candidates <- dat_ko_variables_selection[,"variable"]
 

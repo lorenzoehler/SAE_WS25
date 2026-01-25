@@ -1,0 +1,133 @@
+\documentclass[25pt, a0paper, portrait]{tikzposter}
+
+% Bibliographie-Setup
+\usepackage[utf8]{inputenc}
+\usepackage[ngerman]{babel}
+\usepackage{biblatex}
+% Falls du eine .bib Datei hast, lade sie hier:
+% \addbibresource{references.bib} 
+
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+% Uni Bamberg Style laden
+\usepackage{Unistyle}
+\usetitlestyle{Unistyle}
+\useblockstyle{Unistyle}
+
+% Header-Daten
+\title{Vergleich der Fay-Herriot (FH) und Battese-Harter-Fuller (BHF) Modelle}
+\author{[Eure Namen]}
+\institute{Lehrstuhl für Statistik / SAE Lecture -- Simulationsstudie Bolivien}
+\titlegraphic{\includegraphics[width=0.12\textwidth]{images/Logo_weiß.pdf}}
+
+\begin{document}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\block{1. Einleitung \& Zielsetzung}
+{
+    In der regionalen Planung (Small Area Estimation) sind direkte Schätzer bei kleinen Stichprobenumfängen ($n=20$) oft unzuverlässig. 
+    Diese Studie nutzt den \textbf{bolivianischen Zensus 2024} als „Grundgesamtheit“, um die Präzision von zwei Modellansätzen zu validieren:
+    \begin{itemize}
+        \item \textbf{Fay-Herriot (FH):} Ein Area-Level Modell, das aggregierte Daten nutzt.
+        \item \textbf{Battese-Harter-Fuller (BHF):} Ein Unit-Level Modell, das Informationen auf Individualebene nutzt.
+    \end{itemize}
+    Das Ziel ist die Minimierung des \textbf{Mean Squared Error (MSE)} für die Schätzung der Bildungsjahre (\textit{aestudio}) in 113 Provinzen.
+}   
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{columns}
+    \column{0.5}
+    \block{2. Daten \& Simulationsdesign}{
+        \textbf{Datenbasis:} Vollständiger Zensus Boliviens (Haushalts- \& Personendaten). Filter: Alter $\ge 18$ Jahre. \\
+        \textbf{Simulation:} 
+        \begin{itemize}
+            \item 200 unabhängige Stichprobenziehungen (Monte-Carlo).
+            \item Stratifizierte Auswahl: Festgelegte Stichprobe von \textbf{$n=20$ pro Provinz}.
+            \item Da die Zensuswerte bekannt sind, dient der Zensus-Mittelwert als „Wahrheit“ zur Fehlerberechnung.
+        \end{itemize}
+        \textbf{Prädiktoren:} Alter, Geschlecht, Urbanität, Lesefähigkeit sowie Haushaltsmerkmale (PKW, Warmwasser, Wandmaterial).
+    }
+
+    \block{3. Modellstabilität (Path-Plots)}{
+        Ein technisches Highlight ist die Stabilität der Regressionskoeffizienten über die 200 Simulationsläufe hinweg.
+        \begin{tikzfigure}
+            % Ersetze 'path_plot.png' durch dein Bild aus dem R-Code
+            % \includegraphics[width=0.4\textwidth]{path_plot.png}
+            \small (Hier: Grafik zur Koeffizienten-Stabilität einfügen)
+        \end{tikzfigure}
+        \textbf{Erkenntnis:} Trotz kleiner Fallzahlen zeigen die BHF-Koeffizienten eine sehr hohe Konsistenz, was für die Robustheit des Modells spricht.
+    }
+
+    \column{0.5}
+    \block{4. Hauptergebnis: MSE-Vergleich}
+    {
+        Die Modellierung führt zu einer massiven Reduktion des Schätzfehlers im Vergleich zum direkten Schätzer.
+        \begin{tikzfigure}
+            % Ersetze 'karten.png' durch deinen Karten-Vergleich
+            % \includegraphics[width=0.45\textwidth]{karten_vergleich.png}
+        \end{tikzfigure}
+        \textbf{Visualisierung:} Drei Karten von Bolivien (Direct vs. FH vs. BHF) zeigen die räumliche Verteilung des Mean MSE. \\
+        \textbf{MSE-Distribution:}
+        \begin{tikzfigure}
+            % \includegraphics[width=0.4\textwidth]{violin_mse.png}
+        \end{tikzfigure}
+        Der Violin-Plot zeigt, dass BHF die geringste Fehlervarianz über alle Domänen aufweist.
+    }
+\end{columns}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{columns}
+    \column{0.6}
+    \block{5. Fazit}{
+        \begin{enumerate}
+            \item \textbf{BHF-Überlegenheit:} Das Unit-Level Modell (BHF) nutzt die Daten am effizientesten und liefert die stabilsten Ergebnisse bei $n=20$.
+            \item \textbf{MSE-Reduktion:} Beide SAE-Modelle schlagen den direkten Schätzer in Bezug auf Präzision und Bias deutlich.
+            \item \textbf{Praxisrelevanz:} Die Einbeziehung von Zensus-Hilfsvariablen ist essenziell für verlässliche regionale Statistiken in Bolivien.
+        \end{enumerate}
+    }
+    
+    \column{0.4}
+    \block{Modellparameter (Beispiel)}{
+    \LARGE
+          \begin{tabular}{l|c|c}
+            \toprule
+            Variable & Schätzer (BHF) & Signifikanz \\
+            \midrule
+            Alter & -0.045 & *** \\
+            Urbanität & 1.230 & *** \\
+            Lesefähigkeit & 2.105 & *** \\
+            \bottomrule
+        \end{tabular}
+    }
+\end{columns}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\block{Referenzen}{
+    \small
+    Battese, G. E., Harter, R. M., & Fuller, W. A. (1988). An Error-Components Model for Prediction of County Crop Areas Using Survey and Satellite Data. \textit{JASA}. \\
+    Fay, R. E., & Herriot, R. A. (1979). Estimates of Income for Small Places: An Application of James-Stein Procedures to Census Data. \textit{JASA}.
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\block{}{
+    \begin{minipage}[t]{0.3\textwidth}
+        \textbf{Kontakt:}\\
+        [Eure Namen]\\
+        Universität Bamberg\\
+        [Email]
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.3\textwidth}
+        \textbf{Software:}\\
+        R-Packages: \texttt{emdi}, \texttt{saeTrafo}, \texttt{tidyverse}
+    \end{minipage}
+}
+
+\end{document}
