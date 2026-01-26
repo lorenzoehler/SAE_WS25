@@ -195,7 +195,7 @@ write.csv(res_df, file = file.path(OUTDIR, "fh_area_level_estimators.csv"), row.
 saveRDS(fh_model_full, file = file.path(OUTDIR, "fh_model_full.rds"))
 ```
 
-# 10) Notes (why we changed the previous version)
+# 10) Notes (warum wir die letzte version geändert haben)
 
 - Wir **nutzen nicht** `Mean ~ mean_years_edu`, wenn `mean_years_edu` aus dem Zensus die gleiche Variable wie die Zielvariable ist.
   Das waere kein SAE-Szenario, sondern wuerde Information aus der Population direkt in das Modell "hineinleaken".

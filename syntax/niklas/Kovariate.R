@@ -1,7 +1,6 @@
-############################################################
+
 # Small Area Estimation mit Fay–Herriot vs. Direktschätzer
 # Bolivien, Verwaltungseinheiten der dritten Ebene (2015)
-############################################################
 
 # STEP 0: Pakete laden
 library(tidyverse)
@@ -93,7 +92,7 @@ compare <- fh_data |>
 # Ergebnisse speichern
 write_csv(compare, "output/direct_vs_fh_results.csv")
 
-############################################################
+
 # Ergebnis: CSV mit Direktschätzer vs. FH-EBLUP pro Municipio
 # -> Verwaltungseinheiten der dritten Ebene, Bolivien, 2015
-############################################################
+
