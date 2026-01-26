@@ -629,7 +629,7 @@ ggsave("../../output/abs_diff_true_Dir_FH_BHF_samples_aggre-01.png",
 tmp_dat <- dat_MSE %>% group_by(sample,method) %>% reframe(mean_MSE = mean(MSE))
 
 tmp_dat <- tmp_dat %>%
-  mutate(method = factor(method, levels = c("FH", "BHF","Dir")))
+  mutate(method = factor(method, levels = c("BHF","Dir","FH")))
 
 distance_true_value <- tmp_dat %>% filter(method != "Dir") %>% 
 ggplot(., aes(x = method, y = mean_MSE, fill = method)) +
@@ -760,7 +760,7 @@ beta_FH_long <- do.call(
   })
 )
 
-sample_001_FH$model$coefficients
+# sample_001_FH$model$coefficients
 
 ggplot(beta_FH_long,aes(x = sample, y = value, color = term)) +
   geom_line(alpha = .5) +
@@ -793,7 +793,8 @@ lm(bhf_fixed_base,data = test)
 
 
 ######## plot coefficients over samples ########
-df_optics <- beta_BHF_long %>%
+df_optics_BHF <- beta_BHF_long %>%
+  # mutate(term_BHF = term) %>% 
   group_by(term) %>%
   summarise(
     var_wert = var(value),      # Varianz über die Samples
@@ -801,14 +802,15 @@ df_optics <- beta_BHF_long %>%
   )
 
 # BHF
-df_optics <- df_optics %>%
+df_optics_BHF <- df_optics_BHF %>%
   mutate(
-    alpha = rescale(var_wert, to = c(.7, .2)),   # Alpha zwischen 0.2 und 1
+    term_BHF = term,
+    alpha = rescale(var_wert, to = c(1, .5)),   # Alpha zwischen 0.2 und 1
     color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
   )
 
 beta_plot <- beta_BHF_long %>%
-  left_join(df_optics %>% select(term, alpha, color), by = "term")
+  left_join(df_optics_BHF %>% select(term, alpha, color), by = "term")
 
 coefficiency_consistancy_BFH <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
   geom_path(aes(color = color),size = 1, alpha = beta_plot$alpha) +
@@ -817,51 +819,101 @@ coefficiency_consistancy_BFH <- ggplot(beta_plot, aes(x = sample, y = value, gro
   theme(legend.position = "none")
 coefficiency_consistancy_BFH
 
-ggsave(filename = "../../output/coefficiency_consistancy_BFH-01.png",
-       coefficiency_consistancy_BFH,       
-       width = 6,      
-       height = 4,    
-       units = "in",   
-       dpi = 300)
+# ggsave(filename = "../../output/coefficiency_consistancy_BFH-01.png",
+#        coefficiency_consistancy_BFH,       
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
 ```
+```{r}
+### get legend
+legen_map <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
+  geom_path(aes(color = color),size = 1, alpha = beta_plot$alpha) +
+  scale_color_identity(guide = "legend", labels = beta_plot$term, name = "Term") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+legend <- get_legend(legen_map)
+```
+
 
 
 ```{r}
 ########### FH ##########
-df_optics <- beta_FH_long %>%
-  group_by(term) %>%
+df_optics_FH <- beta_FH_long %>%
+  rename(term_FH = term) %>% 
+  group_by(term_FH) %>%
   summarise(
     var_wert = var(value),      # Varianz über die Samples
     mean_wert = mean(value)     # optional, z.B. für Farbe
   )
 
+df_optics_FH$term_BHF <- str_replace_all(df_optics_FH$term_FH,pattern = "share_|mean_","")
 
-df_optics <- df_optics %>%
+#### do all of them have a match?
+df_optics_FH$term_BHF %in% df_optics_BHF$term
+
+### merge the two data frames
+df_optics_FH <- df_optics_FH %>% left_join(df_optics_BHF[,c("term_BHF","color")])
+
+### calculate alpha values
+df_optics_FH <- df_optics_FH %>%
   mutate(
-    alpha = rescale(var_wert, to = c(.9, .2)),   # Alpha zwischen 0.2 und 1
-    color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+    term = term_FH,
+    alpha = rescale(var_wert, to = c(1, .2)),   # Alpha zwischen 0.2 und 1
+    # color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
   )
 
+term_levels <- df_optics_FH %>%
+  arrange(desc(var_wert)) %>%   # HIGH variance first
+  pull(term)
+
 beta_plot <- beta_FH_long %>%
-  left_join(df_optics %>% select(term, alpha, color), by = "term")
+  left_join(
+    df_optics_FH %>% select(term, alpha, color),
+    by = "term"
+  ) %>%
+  mutate(
+    term = factor(term, levels = term_levels)
+  )
 
 coefficiency_consistancy_FH <- ggplot(beta_plot, aes(x = sample, y = value, group = term, color = term)) +
-  geom_path(aes(color = color),size = .4, alpha = beta_plot$alpha) +
+  geom_path(aes(color = color),size = 1, alpha = beta_plot$alpha) +
+  # scale_y_continuous(trans = scales::pseudo_log_trans(base = 10)) +
+  coord_cartesian(ylim = c(-100, 100)) +
   scale_color_identity(guide = "legend", labels = beta_plot$term, name = "Term") +
-  theme_classic() + 
+  theme_classic() +
   theme(legend.position = "none")
 
 coefficiency_consistancy_FH
-ggsave(filename = "../../output/coefficiency_consistancy_FH-01.png",
-       coefficiency_consistancy_FH,       
-       width = 6,      
-       height = 4,    
-       units = "in",   
-       dpi = 300)
+
+# ggsave(filename = "../../output/coefficiency_consistancy_FH-01.png",
+#        coefficiency_consistancy_FH,       
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
 
 # cor(test %>% select(starts_with("ocu_")))
 
 
+plot_grid(plot_grid(coefficiency_consistancy_BFH,legend,nrow = 2,rel_heights = c(4,1),rel_widths =),coefficiency_consistancy_FH,nrow = 1)
+
+plot_coefficieny_drift <- plot_grid(plot_grid(coefficiency_consistancy_BFH,coefficiency_consistancy_FH),legend,nrow = 2,rel_heights = c(5,1))
+
+ggsave(filename = "../../output/coefficieny_drift-01.png",
+       plot_coefficieny_drift,
+       width = 6.7,
+       height = 4,
+       units = "in",
+       dpi = 300)
+
+ggsave(filename = "../../output/coefficieny_drift-01.svg",
+       plot_coefficieny_drift,
+       width = 6.7,
+       height = 4,
+       device = "svg")
 ```
 
 
