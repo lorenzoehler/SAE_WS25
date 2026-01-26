@@ -1,0 +1,148 @@
+---
+title: "processing results"
+author: "Lorenz & Niklas"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(reactable)
+```
+
+# Introduction
+In this script the data will be processed so that minimal processing has to be done for the visualizations
+
+## summary data
+This is data that was immediately generated during the Iteration over the 200 samples
+
+```{r}
+dat <- read.csv("../data_raw/simulation/models/summary_final.csv")
+true_values <- readRDS("../data_raw/misc/true_mean_aestudio.RDS")
+
+x <- dat
+fun.round_numeric <- function(x, digit = 3) {
+  lst_num <- sapply(x,function(a) is.numeric(a))
+  x[lst_num] <- sapply(x[lst_num],function(a) round(as.numeric(a),digits = digit))
+  return(x)
+}
+
+dat %>% fun.round_numeric %>% reactable(.,compact = T,filterable = T)
+```
+
+### predictors dropped for BHF
+
+```{r}
+dat$bhf_dropped_predictors %>% table()
+```
+
+which means that only ocu_military was dropped but this was dropped 9 times.
+
+# long format
+
+## MSE and estimators 
+
+```{r}
+## violin
+# ggplot(df_long, aes(x = Estimator, y = MSE, fill = Estimator)) +
+#   geom_violin(alpha = 0.5) +
+#   geom_jitter(alpha = .3)+
+#   geom_boxplot(width = 0.1, fill="white") +  # Boxplot in der Mitte
+#   theme_minimal() +
+#   labs(title = "MSE Distribution by Estimator",
+#        y = "MSE")
+
+lst_files <- list.files("../data_raw/simulation/models/models_rds",full.names = T)
+lst_files <- grep(pattern = "full",x = lst_files,value = T)
+
+dat_MSE <- data.frame("ID_prov" = true_values$ID_prov)
+dat_estimate <- data.frame("ID_prov" = true_values$ID_prov)
+
+for(i in seq_along(lst_files)){
+  tmp_path <- lst_files[i]
+  tmp_model <- readRDS(tmp_path)
+  sample_number <- sub(".*sample_([0-9]+)_FH_full.*", "\\1", tmp_path)
+  
+  MSE_selection <- tmp_model$MSE[,c("Domain","Direct","FH")]
+  colnames(MSE_selection) <- c("ID_prov", paste0("s",sample_number,"Dir"),paste0("s",sample_number,"FH"))
+  
+  estimate_selection <- tmp_model$ind[,c("Domain","Direct","FH")]
+  colnames(estimate_selection) <- c("ID_prov", paste0("s",sample_number,"Dir"),paste0("s",sample_number,"FH"))
+  
+  dat_MSE <- merge(dat_MSE,MSE_selection,by = "ID_prov")
+  dat_estimate <- merge(dat_estimate,estimate_selection,by = "ID_prov")
+}
+
+lst_files <- list.files("../data_raw/simulation/models/models_rds/",full.names = T)
+lst_files <- grep(pattern = "BHF",x = lst_files,value = T)
+
+for(i in seq_along(lst_files)){
+  tmp_path <- lst_files[i]
+  tmp_model <- readRDS(tmp_path)
+  sample_number <- sub(".*sample_([0-9]+)_BHF.*", "\\1", tmp_path)
+  
+  MSE_selection <- tmp_model$MSE[,c("Domain","Mean")]
+  colnames(MSE_selection) <- c("ID_prov", paste0("s",sample_number,"BHF"))
+  
+  
+  estimate_selection <- tmp_model$ind[,c("Domain","Mean")]
+  colnames(estimate_selection) <- c("ID_prov", paste0("s",sample_number,"BHF"))
+
+  dat_MSE <- merge(dat_MSE,MSE_selection,by = "ID_prov")
+  dat_estimate <- merge(dat_estimate,estimate_selection,by = "ID_prov")
+  
+}
+
+
+#####  create long df for MSEs
+lst_colnames_MSEs <- colnames(dat_MSE[,-1])
+
+df_MSE_long <- pivot_longer(dat_MSE, cols = lst_colnames_MSEs,
+  names_to = "Estimator", values_to = "MSE")
+
+# df_long$Estimator
+
+df_MSE_long <- df_MSE_long %>%
+  mutate(
+    sample = str_extract(Estimator, "(?<=^s)\\d+"),
+    method = str_extract(Estimator, "(Dir|FH|BHF)$")
+  )
+
+### filter only the important variables
+df_MSE_long <- df_MSE_long[,c("ID_prov","sample","method","MSE")]
+
+saveRDS(df_MSE_long,"../data_raw/simulation/processed/df_MSE_long.RDS")
+
+###### creat long df for estimates
+lst_colnames_estimates <- colnames(dat_estimate[,-1])
+df_estimates_long <- pivot_longer(dat_estimate, cols = lst_colnames_estimates,
+                            names_to = "Estimator", values_to = "estimate")
+
+df_estimates_long <- df_estimates_long %>%
+  mutate(
+    sample = str_extract(Estimator, "(?<=^s)\\d+"),
+    method = str_extract(Estimator, "(Dir|FH|BHF)$")
+  )
+
+
+#### join true values
+df_estimates_long <- df_estimates_long %>% left_join(true_values,by = "ID_prov")
+df_estimates_long$diff_true <- df_estimates_long$estimate - df_estimates_long$mean_aestudio_true
+
+### filter some variables
+df_estimates_long <- df_estimates_long[,c("ID_prov","sample","method","estimate","mean_aestudio_true","diff_true")]
+
+
+saveRDS(df_estimates_long,"../data_raw/simulation/processed/df_estimates_long.RDS")
+```

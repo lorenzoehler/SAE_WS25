@@ -1,0 +1,221 @@
+---
+title: "preprocessing data for model"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(reactable)
+library(data.table)
+library(openxlsx)
+```
+
+# Introduction
+The goal of this script is to transform the variables into form that is not only usable for the r lm, but also for emdi and saeTrafe. This means to convert factors into dummy coded variables. 
+
+For now only these variables will be used: 
+p26_edad, p25_sexo, ocu_1d_13, urbrur, p40_lee
+
+To make this process also work for more than this one factor, I will first create a table in excel that maps the level to name, then will write a function in r that creates a new column var each dummy variable.
+
+# mapping of dummys
+
+## load in excel 
+The excel file is set up in the way, that the sheet names are the names of the variable, that is being recoded with a value and a label column, every value gets its own row, if a new level contains multiple levels the respecitve values all get the same label. 
+
+```{r}
+### load in sample 
+sample <- readRDS("../data_raw/samples/sample_for_model_building.RDS")
+
+### get sheet names
+sheets <- getSheetNames("../data_raw/mapping/dummy_coding.xlsx")
+
+### look at matches 
+sheets %in% colnames(sample)
+```
+
+## custom function 
+This function makes it very easy to remap dummys via a tabel, which could be i.e an excel sheet, where inputs can more easily be by hand, fro grouping responses, or adding names translations etc. 
+
+```{r}
+### now does not uncesserily create REST category
+fun.mappingDummyCoding <- function(column, name_variable, mapping_sheet) {
+
+  # Determine which rows are mapped
+  idx <- match(column, mapping_sheet$value)
+  valid <- !is.na(idx)
+
+  # Start with levels from mapping sheet
+  levels_out <- unique(mapping_sheet$label)
+
+  # Only add REST category if there are unmatched values
+  if (any(!valid)) {
+    rest_cat <- paste0(name_variable, "_Missing")
+    levels_out <- c(levels_out, rest_cat)
+  }
+
+  # Initialize output matrix
+  out <- matrix(
+    0L,
+    nrow = length(column),
+    ncol = length(levels_out),
+    dimnames = list(NULL, levels_out)
+  )
+
+  # Fill in dummy coding for valid matches
+  if (any(valid)) {
+    col_idx <- match(mapping_sheet$label[idx[valid]], levels_out)
+    out[cbind(which(valid), col_idx)] <- 1L
+  }
+
+  # Fill REST category if needed
+  if (any(!valid)) {
+    out[!valid, rest_cat] <- 1L
+  }
+
+  as.data.frame(out)
+}
+
+
+```
+
+
+
+```{r}
+### defining variables 
+path_excel <- "../data_raw/mapping/dummy_coding.xlsx"
+
+### select variables which are of interst for now 
+# sheets_selection <- sheets[c(1,4,5,6)]
+# paste0(sheets_selection,collapse = '","')  %>% cat()
+sheets_selection <- c("ocu_1d_13","p25_sexo","p40_lee","urbrur","p30b_caja","v04_revoq","v18c_auto","v18h_calefon","v12_cocina")
+
+### initialize empy data frame
+size <- nrow(sample)
+dummy_coding <- data.frame(matrix(nrow = size,ncol = 0))
+
+for(i in seq_along(sheets_selection)){
+ tmp_sheet <- read.xlsx(xlsxFile = path_excel,sheet = sheets_selection[i]) 
+ tmp_mapping_sheet <- tmp_sheet %>% mutate(label = paste0(prefix, label)) %>% select(value, label)
+ 
+ tmp_col_dummy_coding <- fun.mappingDummyCoding(column = sample[[sheets_selection[i]]],
+                        name_variable = sheets_selection[i],
+                        mapping_sheet = tmp_mapping_sheet)
+ 
+ dummy_coding <- cbind(dummy_coding,tmp_col_dummy_coding)
+}
+
+
+### add other columns 
+sample_transformed <- sample %>% select(ID_prov,aestudio,p26_edad) %>% cbind(.,dummy_coding)
+
+saveRDS(sample_transformed,"../data_raw/samples/sample_for_model_building_transformed.RDS")
+```
+
+
+## create 
+
+For now the recoding of the dummy variables, always creats a rest category and a column for each level -- which does not always makes sense, thus some of the variables are deleted before being put into the equation, this is the one we will use for now. 
+
+```{r}
+# paste0(colnames(sample_transformed),collapse =  " + ") 
+### delete the rest categories in some cases, and for the true bin ones, decide for one
+model <- lm(aestudio ~  p26_edad + ocu_military + ocu_manager + ocu_professional + ocu_technician + ocu_adminSupport + ocu_serviceSales + ocu_agriculture + ocu_construction + ocu_operators + ocu_unskilled + ocu_NaN + ocu_1d_13_Missing + sex_male + read_knowing + read_not_knowing + read_not_specified + urbrur_urban + health_insurance_yes  + health_insurance_not_specified + p30b_caja_Missing + interior_plastered_yes + v04_revoq_Missing + car_yes + + car_not_specified + v18c_auto_Missing + water_heater_yes + water_heater_not_specified + v18h_calefon_Missing + kitchen_yes + v12_cocina_Missing, data = sample_transformed)
+
+model %>% summary ()
+
+model_step <- step(model,direction = "both",trace = 0)
+model_step %>% summary()
+
+model_step$call
+
+```
+
+# transform variables of census data
+
+```{r}
+dat <- readRDS("../data_raw/large_files/dat_preprocessing-01.RDS")
+
+### first colums have †o be transformed
+size <- nrow(dat)
+dummy_coding <- data.frame(matrix(nrow = size,ncol = 0))
+
+for(i in seq_along(sheets_selection)){
+ tmp_sheet <- read.xlsx(xlsxFile = path_excel,sheet = sheets_selection[i]) 
+ tmp_mapping_sheet <- tmp_sheet %>% mutate(label = paste0(prefix, label)) %>% select(value, label)
+ 
+ tmp_col_dummy_coding <- fun.mappingDummyCoding(column = dat[[sheets_selection[i]]],
+                        name_variable = sheets_selection[i],
+                        mapping_sheet = tmp_mapping_sheet)
+ 
+ dummy_coding <- cbind(dummy_coding,tmp_col_dummy_coding)
+}
+
+
+### add numeric values and ID col
+dat_transformed <- dat %>% select(aestudio,p26_edad,ID_prov) %>% cbind(.,dummy_coding)
+
+## save transformed census
+saveRDS(dat_transformed,"../data_raw/2024_census/processed/dat_dummyCoding.RDS")
+```
+
+# calculate auxillary data for FH model 
+
+```{r}
+### calculate auxi
+covariats_numeric <-c("p26_edad")
+
+covariats_factors <- c(
+  "ocu_military",
+  "ocu_manager",
+  "ocu_professional",
+  "ocu_technician",
+  "ocu_adminSupport",
+  "ocu_serviceSales",
+  "ocu_agriculture",
+  "ocu_unskilled",
+  "sex_male",
+  "read_knowing",
+  "urbrur_urban",
+  "health_insurance_yes",
+  "interior_plastered_yes",
+  "v04_revoq_Missing",
+  "car_yes",
+  "water_heater_yes",
+  "kitchen_yes"
+)
+
+
+dat_census_aux <- dat_transformed %>%
+  group_by(ID_prov) %>%
+  summarise(
+    across(all_of(covariats_numeric), ~ mean(.x, na.rm = TRUE), .names = "mean_{.col}"),
+    across(all_of(covariats_factors), ~ mean(.x == 1, na.rm = TRUE), .names = "share_{.col}")
+  ) %>%
+  ungroup()
+
+saveRDS(dat_census_aux,"../data_raw/2024_census/processed/census_aux_data_aggregated.RDS")
+
+```
+
+
+# True aestudio for provinces for comparison 
+
+```{r}
+true_mean <- dat %>% group_by(ID_prov) %>% reframe(mean_aestudio_true = mean(aestudio,na.rm = T))
+saveRDS(true_mean,"../data_raw/2024_census/processed/true_mean_aestudio.RDS")
+```

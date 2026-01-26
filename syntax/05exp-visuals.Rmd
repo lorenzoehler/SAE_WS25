@@ -1,0 +1,1004 @@
+---
+title: "Exploratory Analysis"
+author: "Lorenz & Niklas"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(tidyverse)
+library(cowplot)
+library(sf)
+library(scales)
+library(viridis)
+library(reactable)
+
+fun.round_numeric <- function(x, digit = 3) {
+  lst_num <- sapply(x,function(a) is.numeric(a))
+  x[lst_num] <- sapply(x[lst_num],function(a) round(as.numeric(a),digits = digit))
+  return(x)
+}
+```
+
+# Introduction
+In 
+
+```{r}
+dat_MSE <- readRDS("../data_raw/simulation/processed/df_MSE_long.RDS")
+dat_estimate <- readRDS("../data_raw/simulation/processed/df_estimates_long.RDS")
+
+map <- read_sf("../data_raw/shape/bol_adm_mdrt_2013/bol_admbnd_adm2_mdrt_2013_v01.shp")
+map <- map %>% rename(ID_prov = ADM2_PCODE)
+```
+
+
+```{r}
+colo <- list(
+  AP = c("#FBBF24", "#22D3EE", "#FB7185", "#E5E7EB"),
+  BP = c("#E5E7EB", "#38BDF8", "#A3E635"),
+  CP = c("#FACC15", "#22D3EE", "#4ADE80", "#FB923C", "#F472B6")
+)
+```
+
+## set themes 
+
+```{r}
+### define styel
+map_style_beamer <- theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "right",
+    legend.title.position = "top",
+    # legend.key.height = unit(3, "mm"),
+    # legend.key.width  = unit(4, "mm"),
+    legend.title = element_text(size = 9),
+    # legend.text  = element_text(size = 8),
+    # legend.margin = margin(0, 0, 0, 0),
+    # legend.box.margin = margin(0, 0, 0, 0),
+    axis.title = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.line  = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = NA, colour = NA),
+    plot.background  = element_rect(fill = NA, colour = NA)
+  )
+
+scale_fill_mse <- function(limits, name = "Mean MSE",colours = c("#134E4A", "#2A9D8F", "#FACC15")) {
+  scale_fill_gradientn(
+    colours = colours,
+    na.value = "#334155",
+    limits = limits,
+    name = name
+  )
+}
+```
+
+# violin plot
+## distance to true values
+
+```{r}
+distance_true_value <- ggplot(dat_estimate,aes(x = method,y = diff_true, fill = method)) +
+  geom_jitter(alpha = .01) +
+  geom_violin(alpha = .8) +
+  scale_fill_manual(values = c("#7ca982","#334155","#F05425")) +
+  geom_boxplot(width = 0.1, fill="white") +
+  labs(
+    # title = "Distance from estimates to true provincial mean",
+       x = "method",
+       y = "difference to true value")+
+  theme_minimal()
+distance_true_value
+
+
+ggsave("../output/violin-distance-01.svg", 
+       plot = distance_true_value,
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       device = "svg")
+
+ggsave("../output/violin-distance-01.png", 
+       plot = distance_true_value,
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       dpi = 300)
+```
+
+## MSE
+
+
+```{r}
+tmp_dat <- dat_MSE %>% group_by(sample,method) %>% reframe(mean_MSE = mean(MSE))
+tmp_dat <- tmp_dat %>%
+  mutate(method = factor(method, levels = c("BHF","Dir","FH")))
+
+MSE_FH_BHF <- tmp_dat %>% filter(method != "Dir") %>% 
+ggplot(., aes(x = method, y = mean_MSE, fill = method)) +
+  geom_violin(alpha = 0.8) +
+  geom_line(aes(group = sample), alpha = .15)+
+  geom_point(alpha = .2)+
+  geom_boxplot(width = 0.1, fill="white") +  # Boxplot in der Mitte
+  scale_fill_manual(values = c("#7ca982","#F05425")) +
+  theme_minimal() +
+  labs(title = "",
+       y = "MSE",
+       x = "")
+MSE_FH_BHF
+
+
+ggsave("../output/violin-MSE-02.svg", 
+       plot = MSE_FH_BHF,
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       device = "svg")
+
+ggsave("../output/violin-MSE-02.png", 
+       plot = MSE_FH_BHF,
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       dpi = 300)
+
+```
+
+
+# map
+## MSE - processing
+
+```{r}
+df_MSE_agg_samples_long <- dat_MSE %>% 
+  group_by(ID_prov,method) %>% 
+  summarise(mean_samples = mean(MSE))
+
+df_MSE_agg_samples_wide <- pivot_wider(
+  df_MSE_agg_samples_long,
+  id_cols   = ID_prov,
+  names_from = method,
+  values_from = mean_samples
+)
+
+colnames(df_MSE_agg_samples_wide) <- c("ID_prov","MSE_BHF_mean_samples","MSE_Dir_mean_samples","MSE_FH_mean_samples")
+
+map <- map %>% left_join(df_MSE_agg_samples_wide,by = "ID_prov")
+```
+
+## MSE - FH vs BHF - map
+
+```{r}
+global_limits <- df_MSE_agg_samples_long %>% filter(method!= "Dir") %>% pull(mean_samples) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = MSE_BHF_mean_samples)) +
+  # scale_fill_mse(global_limits,colours = c("#94A3B8", "#0F172A","#22D3EE", "#FB7185")) +
+  scale_fill_mse(global_limits,colours = c("#1f2933","#22D3EE", "#FB7185")) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = MSE_BHF_mean_samples)) +
+  # scale_fill_mse(global_limits,colours = c("#94A3B8", "#0F172A","#22D3EE", "#FB7185")) +
+  scale_fill_mse(global_limits,colours = c("#1f2933","#22D3EE", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = MSE_FH_mean_samples)) +
+  # scale_fill_mse(global_limits,colours = c("#94A3B8", "#0F172A","#22D3EE", "#FB7185")) +
+  scale_fill_mse(global_limits,colours = c("#1f2933","#22D3EE", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+MSE_BHF_FH <- plot_grid(p1,p2,legend_map,nrow = 1,rel_widths = c(1,1,.5))
+# MSE_mean_FH_BHF_samples_aggre <- ggdraw() +
+#   draw_label(
+#     "Mittlerer MSE auf provinzieller Ebene",
+#     # fontface = "bold",
+#     size = 13,
+#     x = 0.5,
+#     y = 0.98,
+#     hjust = 0.5,
+#     vjust = 1
+#   ) +
+#   draw_plot(
+#     plot_grid(p1, p2, legend_map,
+#               nrow = 1,
+#               rel_widths = c(1, 1, .5)),
+#     y = 0,
+#     height = 0.95
+#   )
+
+MSE_BHF_FH
+
+ggsave("../output/MSE_BHF_FH-01.svg", 
+       plot = MSE_BHF_FH,
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       device = "svg")
+
+ggsave("../output/MSE_BHF_FH-01.png", 
+       plot = MSE_BHF_FH,
+       width = 6,      
+       height = 4,    
+       units = "in",   
+       dpi = 300)
+
+```
+
+
+# coefficient lines
+
+## ugly
+
+```{r}
+## compare with true valu
+## model drift 
+lst_files <- list.files("../data_raw/simulation/models/models_rds/",full.names = T)
+lst_BHF_files <- grep(pattern = "BHF",x = lst_files,value = T)
+lst_FH_files <- grep(pattern = "FH_full",x = lst_files,value = T)
+
+list_BHF_models <- lapply(lst_BHF_files, function(x) readRDS(x))
+list_FH_models <- lapply(lst_FH_files, function(x) readRDS(x))
+
+beta_BHF_long <- do.call(
+  rbind,
+  lapply(seq_along(list_BHF_models), function(i) {
+    beta <- list_BHF_models[[i]]$model$coefficients$fixed
+    data.frame(
+      sample = i,
+      term   = names(beta),
+      value  = as.numeric(beta),
+      row.names = NULL
+    )
+  })
+)
+unique(beta_BHF_long$term)
+
+beta_BHF_long %>% 
+  # filter(term == "ocu_military") %>% 
+ggplot(.,aes(x = sample, y = value, color = term)) +
+  geom_line() +
+  theme_classic()
+
+
+```
+
+
+```{r}
+beta_FH_long <- do.call(
+  rbind,
+  lapply(seq_along(list_FH_models), function(i) {
+    beta <- list_FH_models[[i]]$model$coefficients$coefficients
+    data.frame(
+      sample = i,
+      term   = rownames(list_FH_models[[i]]$model$coefficients),
+      value  = as.numeric(beta),
+      row.names = NULL
+    )
+  })
+)
+
+# sample_001_FH$model$coefficients
+
+ggplot(beta_FH_long,aes(x = sample, y = value, color = term)) +
+  geom_line(alpha = .5) +
+  theme_classic()
+```
+
+### pretty
+
+```{r}
+######## plot coefficients over samples ########
+df_optics_BHF <- beta_BHF_long %>%
+  # mutate(term_BHF = term) %>% 
+  group_by(term) %>%
+  summarise(
+    var_wert = var(value),      # Varianz über die Samples
+    mean_wert = mean(value)     # optional, z.B. für Farbe
+  )
+
+# BHF
+df_optics_BHF <- df_optics_BHF %>%
+  mutate(
+    term_BHF = term,
+    alpha = scales::rescale(var_wert, to = c(1, .5)),   # Alpha zwischen 0.2 und 1
+    color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+  )
+df_optics_BHF %>% fun.round_numeric %>% reactable(.,compact = T,filterable = T)
+```
+
+
+```{r}
+beta_plot_BHF <- beta_BHF_long %>%
+  left_join(df_optics_BHF %>% select(term, alpha, color), by = "term")
+
+```
+
+
+```{r}
+########### FH ##########
+df_optics_FH <- beta_FH_long %>%
+  rename(term_FH = term) %>% 
+  group_by(term_FH) %>%
+  summarise(
+    var_wert = var(value),      # Varianz über die Samples
+    mean_wert = mean(value)     # optional, z.B. für Farbe
+  )
+
+df_optics_FH$term_BHF <- str_replace_all(df_optics_FH$term_FH,pattern = "share_|mean_","")
+
+#### do all of them have a match?
+df_optics_FH$term_BHF %in% df_optics_BHF$term
+
+### merge the two data frames
+df_optics_FH <- df_optics_FH %>% left_join(df_optics_BHF[,c("term_BHF","color")])
+
+### calculate alpha values
+df_optics_FH <- df_optics_FH %>%
+  mutate(
+    term = term_FH,
+    alpha = scales::rescale(var_wert, to = c(1, .2)),   # Alpha zwischen 0.2 und 1
+    # color = viridis(length(var_wert))[rank(mean_wert)]  # Farbe nach Mittelwert
+  )
+
+df_optics_FH %>% fun.round_numeric %>% reactable(.,compact = T,filterable = T)
+```
+
+
+
+```{r}
+term_levels <- df_optics_FH %>%
+  arrange(desc(var_wert)) %>%   # HIGH variance first
+  pull(term)
+
+beta_plot_FH <- beta_FH_long %>%
+  left_join(
+    df_optics_FH %>% select(term, alpha, color),
+    by = "term"
+  ) %>%
+  mutate(
+    term = factor(term, levels = term_levels)
+  )
+
+ggplot(beta_plot_FH, aes(x = sample, y = value, group = term, color = term)) +
+  geom_path(aes(color = color),size = 1, alpha = beta_plot_FH$alpha) +
+  # scale_y_continuous(trans = scales::pseudo_log_trans(base = 10)) +
+  coord_cartesian(ylim = c(-100, 100)) +
+  scale_color_identity(guide = "legend", labels = beta_plot_FH$term, name = "Term") +
+  theme_classic()
+
+```
+
+```{r}
+### define colors and slect categories manually
+# dput(df_optics_BHF$term)
+
+# c("(Intercept)", "car_yes", "health_insurance_yes", "interior_plastered_yes", 
+# "kitchen_yes", "ocu_adminSupport", "ocu_agriculture", "ocu_manager", 
+# "ocu_military", "ocu_professional", "ocu_serviceSales", "ocu_technician", 
+# "ocu_unskilled", "p26_edad", "read_knowing", "sex_male", "urbrur_urban", 
+# "water_heater_yes")
+
+selection_variables <- c("(Intercept)",
+                         "ocu_agriculture",
+                         "p26_edad",
+                         "read_knowing",
+                         "sex_male",
+                         # "ocu_serviceSales",
+                         "health_insurance_yes"
+                         # "ocu_technician"
+                         )
+
+optics_manual <- data.frame(
+  term  = selection_variables,
+  color = c(
+    "#8EB8E5",  # (Intercept)
+    "darkgreen",  # ocu_agriculture
+    "#492C1D",  # p26_edad
+    "#6B7F82",  # read_knowing
+    "#5B5750",  # sex_male
+    # "#34D399",  # urbrur_urban
+    # "#F472B6"   # ocu_adminSupport
+    "#7C99B4" # health insurance
+    # "darkblue"
+  ),
+  alpha = c(
+    1,  # (Intercept)
+    1,
+    1,
+    # 0.7,
+    1,
+    # 0.7,
+    # 0.8,
+    1,
+    1
+  )
+)
+
+```
+
+
+```{r}
+df_plot_beta_BHF<- merge(beta_BHF_long,optics_manual,by = "term")
+df_plot_beta_BHF$sample %>% class()
+
+df_plot_beta_BHF <- df_plot_beta_BHF %>%
+  arrange(term, sample)
+```
+
+
+```{r}
+### get legend
+ggplot(df_plot_beta_BHF,
+       aes(x = sample, y = value, group = term)) +
+  geom_path(
+    aes(color = color, alpha = alpha),
+    size = 1
+  ) +
+  scale_color_identity(
+    guide  = "legend",
+    breaks = unique(df_plot_beta_BHF$color),
+    labels = unique(df_plot_beta_BHF$term),
+    name   = "Term"
+  ) +
+  scale_alpha_identity() +
+  theme_classic()
+```
+
+```{r}
+dput(df_optics_FH$term_FH)
+# c("(Intercept)", "mean_p26_edad", "share_car_yes", "share_health_insurance_yes", 
+# "share_kitchen_yes", "share_ocu_adminSupport", "share_ocu_professional", 
+# "share_ocu_serviceSales", "share_ocu_technician", "share_read_knowing", 
+# "share_sex_male", "share_urbrur_urban", "share_v04_revoq_Missing"
+# )
+selection_variables <- c("(Intercept)",
+                         # "ocu_agriculture",
+                         "mean_p26_edad",
+                         "share_read_knowing",
+                         "share_sex_male",
+                         # "share_ocu_serviceSales",
+                         "share_health_insurance_yes"
+                         # "share_ocu_technician"
+                         )
+
+optics_manual <- data.frame(
+  term  = selection_variables,
+  color = c(
+    "#8EB8E5",  # (Intercept)
+    # "darkgreen",  # ocu_agriculture
+    "#492C1D",  # p26_edad
+    "#6B7F82",  # read_knowing
+    "#5B5750",  # sex_male
+    # "#34D399",  # urbrur_urban
+    # "#F472B6"   # ocu_adminSupport
+    "#7C99B4" # health insurance
+    # "darkblue"
+  ),
+  alpha = c(
+    1,  # (Intercept)
+    # 0.8,
+    1,
+    1,
+    .7,
+    # 0.7,
+    1
+  )
+)
+```
+
+
+```{r}
+df_plot_beta_FH<- merge(beta_FH_long,optics_manual,by = "term")
+
+df_plot_beta_FH <- df_plot_beta_FH %>%
+  arrange(term, sample)
+```
+
+
+```{r}
+ggplot(df_plot_beta_FH,
+       aes(x = sample, y = value, group = term)) +
+  geom_path(
+    aes(color = color, alpha = alpha),
+    size = 1
+  ) +
+  scale_color_identity(
+    guide  = "legend",
+    breaks = unique(df_plot_beta_BHF$color),
+    labels = unique(df_plot_beta_BHF$term),
+    name   = "Term"
+  ) +
+    coord_cartesian(ylim = c(-24, 35)) +
+  scale_alpha_identity() +
+  theme_classic()
+```
+
+
+```{r}
+legend_plot <- ggplot(df_plot_beta_BHF,
+       aes(x = sample, y = value, group = term)) +
+  geom_path(
+    aes(color = color, alpha = alpha),
+    size = 1
+  ) +
+  scale_color_identity(
+    guide  = "legend",
+    breaks = unique(df_plot_beta_BHF$color),
+    labels = unique(df_plot_beta_BHF$term),
+    name   = "Term"
+  ) +
+  scale_alpha_identity() +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+legend <- get_legend(legend_plot)
+
+p1 <- legend_plot +  theme(legend.position = "none")
+
+p2 <- ggplot(df_plot_beta_FH,
+       aes(x = sample, y = value, group = term)) +
+  geom_path(
+    aes(color = color, alpha = alpha),
+    size = 1
+  ) +
+  scale_color_identity(
+    guide  = "legend",
+    breaks = unique(df_plot_beta_BHF$color),
+    labels = unique(df_plot_beta_BHF$term),
+    name   = "Term"
+  ) +
+    coord_cartesian(ylim = c(-24, 35)) +
+  scale_alpha_identity() +
+  theme_classic()+
+  theme(legend.position = "none")
+
+
+plot_grid(plot_grid(p1,p2,nrow = 1),legend,nrow = 2,rel_heights = c(6,1))
+
+# ggsave(filename = "../output/coefficiency_consistancy_BFH-01.png",
+#        coefficiency_consistancy_BFH,       
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
+
+
+```
+
+# Apendix
+
+## maps 
+
+### MSE sample 1
+
+```{r}
+dat_MSE_s1 <- dat_MSE %>%
+  filter(sample == "001") %>%
+  mutate(MSE_s1 = MSE)
+
+df_MSE_s1_wide <- pivot_wider(
+  dat_MSE_s1,
+  id_cols   = ID_prov,
+  names_from = method,
+  values_from = MSE_s1
+)
+
+colnames(df_MSE_s1_wide) <- c("ID_prov","MSE_Dir_s1","MSE_FH_s1","MSE_BFH_s1")
+
+map <- map %>% left_join(df_MSE_s1_wide,by = "ID_prov")
+```
+
+
+```{r}
+global_limits <- dat_MSE_s1 %>% filter(method != "Dir") %>% pull(MSE_s1) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = MSE_BHF_mean_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = MSE_BFH_s1)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = MSE_FH_s1)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+MSE_mean_FH_BHF_samples_aggre <- plot_grid(p1,p2,legend_map,nrow = 1,rel_widths = c(1,1,.5))
+MSE_mean_FH_BHF_samples_aggre
+
+```
+
+### estimates BHF vs FH vs Direct
+
+```{r}
+df_estimate_agg_samples_long <- dat_estimate %>% 
+  group_by(ID_prov,method) %>% 
+  summarise(mean_estimate = mean(estimate),
+            var_estimate = var(estimate)
+            )
+
+df_estimate_agg_samples_wide <- pivot_wider(
+  df_estimate_agg_samples_long,
+  id_cols   = ID_prov,
+  names_from = method,
+  values_from = c(mean_estimate,var_estimate)
+)
+
+colnames(df_estimate_agg_samples_wide) <- c("ID_prov","estimate_BHF_mean_samples","estimate_Dir_mean_samples","estimate_FH_mean_samples","estimate_BHF_var_samples","estimate_Dir_var_samples","estimate_FH_var_samples")
+
+map <- map %>% left_join(df_estimate_agg_samples_wide,by = "ID_prov")
+```
+
+```{r}
+global_limits <- df_estimate_agg_samples_long %>% pull(mean_estimate) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = estimate_BHF_mean_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = estimate_Dir_mean_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Direct")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = estimate_FH_mean_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = estimate_BHF_mean_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+estimate_mean_Dir_FH_BHF_samples_aggre <- plot_grid(p1,p2,p3,legend_map,nrow = 1,rel_widths = c(1,1,1,.5))
+estimate_mean_Dir_FH_BHF_samples_aggre
+# ggsave("../output/estimate_mean_Dir_FH_BHF_samples_aggre-01.svg",
+#        plot = estimate_mean_Dir_FH_BHF_samples_aggre,
+#        width = 6,
+#        height = 4,
+#        units = "in",
+#        device = "svg")
+# 
+# ggsave("../output/estimate_mean_Dir_FH_BHF_samples_aggre.png",
+#        plot = estimate_mean_Dir_FH_BHF_samples_aggre,
+#        width = 6,
+#        height = 4,
+#        units = "in",
+#        dpi = 300)
+
+```
+
+### variance 
+Variance of the estimates pooled over 200 samples on a provincial level
+
+```{r}
+global_limits <- df_estimate_agg_samples_long %>% pull(var_estimate) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = estimate_BHF_var_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = estimate_Dir_var_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Direct")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = estimate_FH_var_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = estimate_BHF_var_samples)) +
+  scale_fill_mse(global_limits) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+estimate_var_Dir_FH_BHF_samples_aggre <- plot_grid(p1,p2,p3,legend_map,nrow = 1,rel_widths = c(1,1,1,.5))
+estimate_var_Dir_FH_BHF_samples_aggre
+# 
+# ggsave("../output/estimate_var_Dir_FH_BHF_samples_aggre-01.svg", 
+#        plot = estimate_var_Dir_FH_BHF_samples_aggre,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        device = "svg")
+# 
+# ggsave("../output/estimate_var_Dir_FH_BHF_samples_aggre.png", 
+#        plot = estimate_var_Dir_FH_BHF_samples_aggre,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
+```
+### distance to real values
+
+```{r}
+df_var_diff_true_agg_samples_long <- dat_estimate %>%
+  group_by(ID_prov,method) %>%
+  summarise(mean_diff_true = mean(diff_true),
+            var_diff_true = var(diff_true))
+
+# ggplot(dat_estimate,aes(x = method, y = diff_true, fill = diff_true))+
+#   geom_boxplot()
+
+df_var_diff_true_agg_samples_wide <- pivot_wider(
+  df_var_diff_true_agg_samples_long,
+  id_cols   = ID_prov,
+  names_from = method,
+  values_from = c(mean_diff_true,var_diff_true)
+)
+
+colnames(df_var_diff_true_agg_samples_wide) <- c("ID_prov","diff_true_BHF_mean_samples","diff_true_Dir_mean_samples","diff_true_FH_mean_samples","diff_true_BHF_var_samples","diff_true_Dir_var_samples","diff_true_FH_var_samples")
+
+map <- map %>% left_join(df_var_diff_true_agg_samples_wide,by = "ID_prov")
+# colnames(map)
+```
+
+
+```{r}
+global_limits <- df_var_diff_true_agg_samples_long %>% pull(mean_diff_true) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_Dir_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 name = "mean difference to true value",
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_Dir_mean_samples)) +
+  scale_fill_mse(global_limits,
+colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Direct")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_FH_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_BHF_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+diff_true_Dir_FH_BHF_samples_aggre <- plot_grid(p1,p2,p3,legend_map,nrow = 1,rel_widths = c(1,1,1,.5))
+diff_true_Dir_FH_BHF_samples_aggre
+# 
+# ggsave("../output/diff_true_Dir_FH_BHF_samples_aggre-01.svg", 
+#        plot = diff_true_Dir_FH_BHF_samples_aggre,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        device = "svg")
+# 
+# ggsave("../output/diff_true_Dir_FH_BHF_samples_aggre-01.png", 
+#        plot = diff_true_Dir_FH_BHF_samples_aggre,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
+
+```
+
+### BHF vs FH vs Direct Sample 1
+
+```{r}
+df_diff_true_s1_long <- dat_estimate %>% 
+  filter(sample == "001") 
+
+
+df_var_diff_true_agg_samples_wide <- pivot_wider(
+  df_diff_true_s1_long,
+  id_cols   = ID_prov,
+  names_from = method,
+  values_from = diff_true)
+
+colnames(df_var_diff_true_agg_samples_wide) <- c("ID_prov","diff_true_Dir_s1","diff_true_FH_s1","diff_true_BHF_s1")
+
+map <- map %>% left_join(df_var_diff_true_agg_samples_wide,by = "ID_prov")
+# colnames(map)
+```
+
+
+```{r}
+global_limits <- df_diff_true_s1_long %>% pull(diff_true) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_Dir_s1)) +
+  scale_fill_mse(global_limits,
+                 name = "sample 1 difference to true value",
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_Dir_s1)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Direct")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_FH_s1)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = diff_true_FH_s1)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+diff_true_Dir_FH_BHF_s1 <- plot_grid(p1,p2,p3,legend_map,nrow = 1,rel_widths = c(1,1,1,.8))
+diff_true_Dir_FH_BHF_s1
+# 
+# ggsave("../output/diff_true_Dir_FH_BHF_s1-01.svg", 
+#        plot = diff_true_Dir_FH_BHF_s1,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        device = "svg")
+# 
+# ggsave("../output/diff_true_Dir_FH_BHF_s1-01.png", 
+#        plot = diff_true_Dir_FH_BHF_s1,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
+```
+### absolute difference
+```{r}
+df_abs_diff_true_agg_samples_long <- dat_estimate %>% 
+  group_by(ID_prov,method) %>% 
+  summarise(abs_mean_diff_true = mean(abs(diff_true)),
+            abs_var_diff_true = var(abs(diff_true)))
+
+# ggplot(dat_estimate,aes(x = method, y = diff_true, fill = diff_true))+
+#   geom_boxplot()
+
+df_abs_diff_true_agg_samples_wide <- pivot_wider(
+  df_abs_diff_true_agg_samples_long,
+  id_cols   = ID_prov,
+  names_from = method,
+  values_from = c(abs_mean_diff_true,abs_var_diff_true)
+)
+
+colnames(df_abs_diff_true_agg_samples_wide) <- c("ID_prov","abs_diff_true_BHF_mean_samples","abs_diff_true_Dir_mean_samples","abs_diff_true_FH_mean_samples","abs_diff_true_BHF_var_samples","abs_diff_true_Dir_var_samples","abs_diff_true_FH_var_samples")
+
+map <- map %>% left_join(df_abs_diff_true_agg_samples_wide,by = "ID_prov")
+# colnames(map)
+```
+
+### BHF vs FH vs Direct
+
+```{r}
+global_limits <- df_abs_diff_true_agg_samples_long %>% pull(abs_mean_diff_true) %>% range()
+
+p_map <- ggplot(map) +
+  geom_sf(aes(fill = abs_diff_true_BHF_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 name = "abs mean difference to true value",
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer
+
+legend_map <- get_legend(p_map)
+
+
+p1 <- ggplot(map) +
+  geom_sf(aes(fill = abs_diff_true_Dir_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "Direct")
+
+
+p2 <- ggplot(map) +
+  geom_sf(aes(fill = abs_diff_true_FH_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "FH")
+
+p3 <- ggplot(map) +
+  geom_sf(aes(fill = abs_diff_true_BHF_mean_samples)) +
+  scale_fill_mse(global_limits,
+                 colours = c("#22D3EE", "#0F172A", "#FB7185")) +
+  map_style_beamer +
+  theme(legend.position = "none") +
+  labs(title = "BHF")
+
+abs_diff_true_Dir_FH_BHF_samples_aggre <- plot_grid(p1,p2,p3,legend_map,nrow = 1,rel_widths = c(1,1,1,.8))
+abs_diff_true_Dir_FH_BHF_samples_aggre
+# 
+# ggsave("../output/abs_diff_true_Dir_FH_BHF_samples_aggre-01.svg", 
+#        plot = abs_diff_true_Dir_FH_BHF_samples_aggre,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        device = "svg")
+# 
+# ggsave("../output/abs_diff_true_Dir_FH_BHF_samples_aggre-01.png", 
+#        plot = abs_diff_true_Dir_FH_BHF_samples_aggre,
+#        width = 6,      
+#        height = 4,    
+#        units = "in",   
+#        dpi = 300)
+```

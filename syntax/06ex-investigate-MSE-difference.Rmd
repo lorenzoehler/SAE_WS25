@@ -1,0 +1,62 @@
+---
+title: "Template Title"
+author: "Lorenz Alban Oehler"
+date: "The Date"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+Investigate, how now after the patch the mean MSE of the FH can be lower tehen the one of the BHF
+
+
+```{r}
+dat_MSE <- readRDS("../../data_raw/simulation/processed/df_MSE_long.RDS")
+dat_estimate <- readRDS("../../data_raw/simulation/processed/df_estimates_long.RDS")
+```
+
+```{r}
+dat_MSE_mean <- dat_MSE %>% group_by(sample,method) %>% reframe(mean_MSE = mean(MSE))
+
+dat_MSE_mean %>% filter(method == "FH") %>% pull(mean_MSE) %>% mean()
+dat_MSE_mean %>% filter(method == "BHF") %>% pull(mean_MSE) %>% mean()
+
+
+colnames(dat_MSE)
+dat_MSE$method %>% table()
+
+tmp_1 <- dat_MSE_mean %>%
+  filter(method == "BHF") %>%
+  pivot_wider(
+    names_from = method,
+    values_from = mean_MSE
+  )
+
+tmp_2 <- dat_MSE_mean %>%
+  filter(method == "FH") %>%
+  pivot_wider(
+    names_from = method,
+    values_from = mean_MSE
+  ) 
+
+dat_diff <- merge(tmp_1[,c("sample","BHF")],tmp_2[,c("sample","FH")], by = c("sample"))
+
+dat_diff$diff <- dat_diff$BHF - dat_diff$FH
+
+dat_diff$diff %>% hist()
+
+dat_diff$BHF %>% mean()
+dat_diff$FH %>% mean()
+```
+
