@@ -1,6 +1,6 @@
 library(tidyverse)
 
-dat <- read.csv("results_batch/summary_final.csv")
+dat <- read.csv("../../data_raw/simulation/models/summary_final.csv")
 
 # Data in long format bringen
 df_long <- pivot_longer(dat, cols = c(
@@ -42,10 +42,10 @@ ggplot(df_long, aes(x = MSE, color = Estimator, fill = Estimator)) +
        x = "MSE", y = "Density")
 
 
-sample_001_BHF <- readRDS("~/Documents/GitHub/SAE_WS25/syntax/lorenz/results_batch/models_rds/sample_001_BHF.rds")
+# sample_001_BHF <- readRDS("~/Documents/GitHub/SAE_WS25/syntax/lorenz/results_batch/models_rds/sample_001_BHF.rds")
 sample_001_BHF$MSE
 
-lst_files <- list.files("results_batch/models_rds",full.names = T)
+lst_files <- list.files("../../data_raw/simulation/models/models_rds",full.names = T)
 lst_files <- grep(pattern = "full",x = lst_files,value = T)
 
 dat_MSE <- data.frame("ID_prov" = sample_001_BHF$ind$Domain)
@@ -66,7 +66,7 @@ for(i in seq_along(lst_files)){
   dat_estimate <- merge(dat_estimate,estimate_selection,by = "ID_prov")
 }
 
-lst_files <- list.files("results_batch/models_rds",full.names = T)
+lst_files <- list.files("../../data_raw/simulation/models/models_rds/",full.names = T)
 lst_files <- grep(pattern = "BHF",x = lst_files,value = T)
 
 # dat_MSE <- data.frame("ID_prov" = sample_001_FH_full$ind$Domain)
@@ -104,6 +104,7 @@ df_MSE_long <- df_MSE_long %>%
   )
 
 saveRDS(df_MSE_long,"../../data_raw/simulation/processed/df_MSE_long.RDS")
+# saveRDS(df_estimate_long,"../../data_raw/simulation/processed/df_estimates_long.RDS")
 
 ###### creat long df for estimates
 lst_colnames_estimates <- colnames(dat_estimate[,-1])
@@ -123,7 +124,6 @@ df_estimates_long <- df_estimates_long %>%
 
 ### load true values 
 true_values <- readRDS("../../data_raw/misc/true_mean_aestudio.RDS")
-
 df_estimates_long$diff_true <- NA
 
 for(i in 1:nrow(df_estimates_long)){
@@ -134,7 +134,13 @@ for(i in 1:nrow(df_estimates_long)){
   df_estimates_long$diff_true[i] <- current_value - tmp_comp_value
 }
 
+df_estimates_long %>% group_by(method) %>% reframe(mean = mean(abs(diff_true)),
+                                                   var = var(abs(diff_true)))
+
 saveRDS(df_estimates_long,"../../data_raw/simulation/processed/df_estimates_long.RDS")
+
+
+# Visuals -----------------------------------------------------------------
 
 
 
