@@ -1,0 +1,68 @@
+---
+title: "Combined Reports"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(htmltools)
+```
+
+
+```{r}
+# Names of your existing HTML files
+html_files <- list.files("../syntax/",pattern = "html$")
+
+# Custom tab labels
+tab_labels <- c("Preprocessing", "Variable Selection-1", "Variable Selection-1", "Processing Dummy Coding", "Sampling-Frame", "Fit Modles","Processing Results","Visuals")
+
+
+# Create tab buttons with custom names
+tabs <- lapply(seq_along(html_files), function(i) {
+  tags$li(
+    class = "nav-item",
+    tags$button(
+      class = if(i == 1) "nav-link active" else "nav-link",
+      `data-bs-toggle` = "tab",
+      `data-bs-target` = paste0("#tab", i),
+      tab_labels[i]   # <- Use custom label here
+    )
+  )
+})
+
+# Tab content
+tab_content <- lapply(seq_along(html_files), function(i) {
+  tags$div(
+    class = if(i == 1) "tab-pane fade show active" else "tab-pane fade",
+    id = paste0("tab", i),
+    tags$iframe(
+      src = html_files[i],
+      width = "100%",
+      height = "800px",
+      style = "border:none;"
+    )
+  )
+})
+
+# Combine everything
+combined <- tags$html(
+  tags$head(
+    tags$link(rel = "stylesheet", href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css")
+  ),
+  tags$body(
+    tags$ul(class = "nav nav-tabs", tabs),
+    tags$div(class = "tab-content", tab_content),
+    tags$script(src = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js")
+  )
+)
+
+# Save as one HTML
+save_html(combined, file = "combined.html")
+```
+
