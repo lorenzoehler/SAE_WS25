@@ -151,6 +151,7 @@ plot(tmp_dat$Mean,tmp_dat$Var_Mean)
 tmp_dat <- merge(direct_n500$MSE[,c("Domain","Mean")],direct_estimates[,c("ID_prov","Var_Mean")],by.x = "Domain", by.y = "ID_prov")
 plot(tmp_dat$Mean,tmp_dat$Var_Mean)
 
+direct <- direct_n500
 ```
 
 ### combine with auxillary data
@@ -340,8 +341,6 @@ BHF_model_full <-  NER_Trafo(fixed = bhf_formula_optimized
 
 BHF_model_full$MSE$Mean %>% mean()
 BHF_model_full %>% print()
-
-BHF_model_full$model$
 ```
 
 
@@ -443,7 +442,7 @@ plot_grid(p5,p6,p7,p8,p9,p10,nrow = 3,ncol = 2)
 ```
 
 ```{r fig.width=6, fig.height=16}
-plot_grid_fh <- plot_grid(p2,p4,p8,p10,nrow = 4)
+plot_grid_fh <- plot_grid(p2,p4,p6,p10,nrow = 4)
 plot_grid_fh
 
 ggsave("../output/diagnostics_fh.svg",
@@ -483,7 +482,7 @@ p2 <- p_dig_BHF$density_res +
 
 p3 <- p_dig_BHF$density_ran
 
-p4 <- p_dig_FH$density_ran +
+p4 <- p_dig_BHF$density_ran +
   # scale_color_manual(values = c("red")) +
   # scale_fill_manual(values = c("red")) +
   geom_density(color = "#7ca982",fill = "#7ca982",alpha = .3, linewidth = 1.2) +
@@ -549,7 +548,7 @@ plot_grid(p5,p6,p7,p8,p9,p10,nrow = 3,ncol = 2)
 
 
 ```{r fig.width=6, fig.height=16}
-plot_grid_bhf <- plot_grid(p2,p4,p8,p10,nrow = 5)
+plot_grid_bhf <- plot_grid(p2,p4,p6,p10,nrow = 4)
 plot_grid_bhf
 
 ggsave("../output/diagnostics_bhf.svg", 

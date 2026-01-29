@@ -25,6 +25,7 @@ library(sf)
 library(scales)
 library(viridis)
 library(reactable)
+library(plotly)
 
 fun.round_numeric <- function(x, digit = 3) {
   lst_num <- sapply(x,function(a) is.numeric(a))
@@ -34,7 +35,6 @@ fun.round_numeric <- function(x, digit = 3) {
 ```
 
 # Introduction
-In 
 
 ```{r}
 dat_MSE <- readRDS("../data_raw/simulation/processed/df_MSE_long.RDS")
@@ -45,6 +45,7 @@ map <- map %>% rename(ID_prov = ADM2_PCODE)
 ```
 
 
+# Preperation
 
 ```{r}
 colo <- list(
@@ -54,7 +55,7 @@ colo <- list(
 )
 ```
 
-## set themes 
+## Set Map Themes
 
 ```{r}
 ### define styel
@@ -87,7 +88,7 @@ scale_fill_mse <- function(limits, name = "Mean MSE",colours = c("#134E4A", "#2A
 }
 ```
 
-# numeric descriptions
+# Numeric Descriptions
 In this sections the numbers for the poster are explored
 
 ```{r}
@@ -155,35 +156,7 @@ group_by(method) %>%
 ```
 
 
-## visualizing the bias
-
-```{r}
-### region with very low mean
-region <- "BO0504"
-dat_estimate %>% 
-  filter(ID_prov == region) %>%
-  # filter(method != "Dir") %>% 
-  ggplot(.,aes(x = method,y = diff_true)) +
-  geom_boxplot(width = 0.1, fill="white") +
-  geom_line(aes(group = sample), alpha = .15)+
-  # geom_jitter(alpha = .2) +
-  geom_violin(alpha = .3) + 
-  labs(title = paste("distance to true value, only region",region)) +
-  theme_minimal()
-
-### region with very high mean
-region <- "BO0201"
-dat_estimate %>% 
-  filter(ID_prov == region) %>%
-  # filter(method != "Dir") %>% 
-  ggplot(.,aes(x = method,y = diff_true)) +
-  geom_boxplot(width = 0.1, fill="white") +
-  geom_line(aes(group = sample), alpha = .15)+
-  # geom_jitter(alpha = .2) +
-  geom_violin(alpha = .3) + 
-  labs(title = paste("distance to true value, only region",region)) +
-  theme_minimal()
-```
+# Bias Lineplot
 
 ```{r}
 bias <- dat_estimate %>%
@@ -213,9 +186,13 @@ legend_plot <- ggplot(bias,
   labs(title = "Analyse der Bias-Strukturen", x = "Difference from true value", y = "True provincial mean") +
 theme(
     legend.position = "right",
+    legend.background = element_blank(),
+    legend.key = element_blank(),
     legend.key.size = unit(1.3, "cm"),
     legend.text = element_text(size = 8),
-    legend.title = element_text(size = 8)
+    legend.title = element_text(size = 8),
+    # panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank()
   )
 
 legend <- get_legend(legend_plot)
@@ -242,7 +219,11 @@ p1 <- bias %>% filter(method != "Dir") %>%
   coord_cartesian(xlim = c(-.8, .8)) +
   theme_minimal() +
   labs(title = "Analyse der Bias-Strukturen", x = "Difference from true value", y = "True provincial mean") +
-theme(legend.position = "none")
+theme(legend.position = "none",
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        # panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
 
 
 # p1 <- bias %>% filter(method == "BHF") %>% 
@@ -313,7 +294,12 @@ p3 <- bias %>% filter(method == "Dir") %>%
   coord_cartesian(xlim = c(-.8, .8)) +
   theme_minimal() +
   labs( x = "Difference from true value", y = "True provincial mean") +
-theme(legend.position = "none")
+  theme(legend.position = "none",
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        # panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
+        )
 
 
 plot_grid_bias <- plot_grid(plot_grid(p1),plot_grid(p3,legend),nrow = 2)
@@ -322,8 +308,8 @@ plot_grid_bias
 ggsave(
   "../output/bias-01.svg",
   plot = plot_grid_bias,
-  width = 8,
-  height = 6,
+  width = 4,
+  height = 5,
   units = "in",
   device = "svg"
 )
@@ -334,35 +320,17 @@ ggsave(
   width = 4,
   height = 5,
   units = "in",
-  dpi = 600
+  dpi = 300
 )
 
 ```
 
-## MSE vs distance
-
-```{r}
-dat_MSE_vs_true <- dat_estimate[,c("ID_prov","sample","method","diff_true_abs")] %>% 
-  left_join(dat_MSE,by = c("ID_prov","sample","method"))
-
-dat_MSE_vs_true %>% filter(method != "Dir") %>% 
-ggplot(.,aes(x = MSE,y = diff_true_abs,fill = method, color = method)) +
-  geom_point(alpha = .03) +
-  geom_smooth()+
-  facet_wrap(~ method) +
-  scale_fill_manual(values = c("#7ca982","#F05425")) +
-  scale_color_manual(values = c("#7ca982","#F05425")) +
-  # coord_cartesian(xlim = c(-.8, .8)) +
-  theme_minimal()
-
-```
 
 
 
 
 
-# violin plot
-## distance to true values
+# Distance to True Value Violinplot
 
 ```{r}
 distance_true_value <- ggplot(dat_estimate,aes(x = method,y = diff_true, fill = method)) +
@@ -391,9 +359,15 @@ ggsave("../output/violin-distance-01.png",
        height = 4,    
        units = "in",   
        dpi = 600)
+
+ggsave("../output/violin-distance-01.pdf", 
+       plot = distance_true_value,
+       width = 6,      
+       height = 4,    
+       device = cairo_pdf)
 ```
 
-## MSE
+# MSE Violinplot
 
 ```{r}
 tmp_dat <- dat_MSE %>% group_by(sample,method) %>% reframe(mean_MSE = mean(MSE))
@@ -455,7 +429,7 @@ MSE_FH_BHF_highlight
 ```
 
 
-# map
+# Maps
 ## MSE - processing
 
 ```{r}
@@ -508,17 +482,17 @@ p2 <- ggplot(map) +
   theme(legend.position = "none") +
   labs(title = "FH")
 
-MSE_BHF_FH <- plot_grid(p1,p2,legend_map,nrow = 1,rel_widths = c(1,1,.5))
+# MSE_BHF_FH <- plot_grid(p1,p2,legend_map,nrow = 1,rel_widths = c(1,1,.5))
 
-MSE_mean_FH_BHF_samples_aggre <- ggdraw() +
+MSE_BHF_FH <- ggdraw() +
   draw_label(
-    "Domänenspezifische Verteilung des mittleren MSE über 200 Simulationsläufe",
+    "Domänenspezifische Verteilung des mittleren MSE über 200 Samples",
     # fontface = "bold",
     size = 13,
     x = 0.5,
     y = 0.98,
-    hjust = 0.56,
-    vjust = 1
+    hjust = 0.5,
+    vjust = .9
   ) +
   draw_plot(
     plot_grid(p1, p2, legend_map,
@@ -527,8 +501,8 @@ MSE_mean_FH_BHF_samples_aggre <- ggdraw() +
     y = 0,
     height = 0.95
   )
+MSE_BHF_FH
 
-MSE_mean_FH_BHF_samples_aggre
 
 ggsave("../output/MSE_BHF_FH-01.svg", 
        plot = MSE_BHF_FH,
@@ -544,12 +518,17 @@ ggsave("../output/MSE_BHF_FH-01.png",
        units = "in",   
        dpi = 600)
 
+# ggsave("../output/MSE_BHF_FH-01.pdf", 
+#        plot = MSE_BHF_FH,
+#        width = 6,      
+#        height = 4,    
+#        device = cairo_pdf)
 ```
 
 
-# coefficient lines
+# Coefficient Stability Lineplot
 
-## ugly
+## Ugly, but ineractive
 
 ```{r}
 ## compare with true valu
@@ -575,13 +554,12 @@ beta_BHF_long <- do.call(
 )
 unique(beta_BHF_long$term)
 
-beta_BHF_long %>% 
-  # filter(term == "ocu_military") %>% 
-ggplot(.,aes(x = sample, y = value, color = term)) +
+p <- beta_BHF_long %>%
+  # filter(term == "ocu_military") %>%
+  ggplot(., aes(x = sample, y = value, color = term)) +
   geom_line() +
   theme_classic()
-
-
+ggplotly(p)
 ```
 
 
@@ -601,12 +579,18 @@ beta_FH_long <- do.call(
 
 # sample_001_FH$model$coefficients
 
-ggplot(beta_FH_long,aes(x = sample, y = value, color = term)) +
-  geom_line(alpha = .5) +
+# ggplot(beta_FH_long,aes(x = sample, y = value, color = term)) +
+#   geom_line(alpha = .5) +
+#   theme_classic()
+
+p <- ggplot(beta_FH_long, aes(x = sample, y = value, color = term)) +
+  geom_line(alpha = 0.5) +
   theme_classic()
+
+ggplotly(p)
 ```
 
-### pretty
+### pretty(ier)
 
 ```{r}
 ######## plot coefficients over samples ########
@@ -863,55 +847,57 @@ legend_plot <- ggplot(df_plot_beta_BHF,
         legend.key = element_blank(),
         panel.background = element_blank())
 
-legend <- get_legend(legend_plot)
-
-p1 <- legend_plot +  theme(legend.position = "none")
-
-p2 <- ggplot(df_plot_beta_FH,
-       aes(x = sample, y = value, group = term)) +
-  geom_path(
-    aes(color = color, alpha = alpha),
-    size = 1
-  ) +
-  scale_color_identity(
-    guide  = "legend",
-    breaks = unique(df_plot_beta_BHF$color),
-    labels = unique(df_plot_beta_BHF$term),
-    name   = "Term"
-  ) +
-    coord_cartesian(ylim = c(-24, 35)) +
-  labs(x = "FH")+
-  scale_alpha_identity() +
-  theme_classic()+
-  theme(legend.position = "none",
-         panel.background = element_blank())
-
-
-p_grid <- plot_grid(plot_grid(p1,p2,nrow = 1))
-
-
-coefficiency_consistancy <- ggdraw() +
-  draw_label("Stabilität der geschätzten Koeffizienten", x = 0.5, y = 0.98, hjust = 0.5) +
-  draw_plot(p_grid, x = 0, y = 0.05, width = 1, height = .90) +
-  draw_plot(legend, x = 0, y = 0, width = 1, height = 0.05)  # adjust if needed
-
-coefficiency_consistancy
-
-ggsave(filename = "../output/coefficiency_consistancy.png",
-       coefficiency_consistancy,
-       width = 6,
-       height = 4,
-       units = "in",
-       dpi = 300)
-
-ggsave(filename = "../output/coefficiency_consistancy.svg",
-       coefficiency_consistancy,
-       width = 6,
-       height = 4,
-       device = "svg")
+# legend <- get_legend(legend_plot)
+# 
+# p1 <- legend_plot +  theme(legend.position = "none")
+# 
+# p2 <- ggplot(df_plot_beta_FH,
+#        aes(x = sample, y = value, group = term)) +
+#   geom_path(
+#     aes(color = color, alpha = alpha),
+#     size = 1
+#   ) +
+#   scale_color_identity(
+#     guide  = "legend",
+#     breaks = unique(df_plot_beta_BHF$color),
+#     labels = unique(df_plot_beta_BHF$term),
+#     name   = "Term"
+#   ) +
+#     coord_cartesian(ylim = c(-24, 35)) +
+#   labs(x = "FH")+
+#   scale_alpha_identity() +
+#   theme_classic()+
+#   theme(legend.position = "none",
+#          panel.background = element_blank())
+# 
+# 
+# p_grid <- plot_grid(plot_grid(p1,p2,nrow = 1))
+# 
+# 
+# coefficiency_consistancy <- ggdraw() +
+#   draw_label("Stabilität der geschätzten Koeffizienten", x = 0.5, y = 0.98, hjust = 0.5) +
+#   draw_plot(p_grid, x = 0, y = 0.05, width = 1, height = .90) +
+#   draw_plot(legend, x = 0, y = 0, width = 1, height = 0.05)  # adjust if needed
+# 
+# coefficiency_consistancy
+# 
+# ggsave(filename = "../output/coefficiency_consistancy.png",
+#        coefficiency_consistancy,
+#        width = 6,
+#        height = 4,
+#        units = "in",
+#        dpi = 300)
+# 
+# ggsave(filename = "../output/coefficiency_consistancy.svg",
+#        coefficiency_consistancy,
+#        width = 6,
+#        height = 4,
+#        device = "svg")
 
 # --- p1 = BHF plot ohne Legende ---
-p1 <- legend_plot + theme(legend.position = "none")
+p1 <- legend_plot + theme(legend.position = "none",
+                          legend.background = element_blank(),
+                          legend.key = element_blank())
 
 # --- p2 = FH plot ---
 p2 <- ggplot(df_plot_beta_FH,
@@ -928,6 +914,8 @@ p2 <- ggplot(df_plot_beta_FH,
   scale_alpha_identity() +
   theme_classic() +
   theme(
+    legend.background = element_blank(),
+    legend.key = element_blank(),
     legend.position = "none",
     panel.background = element_blank()
   )
@@ -959,6 +947,12 @@ coefficiency_consistancy <- ggdraw() +
 
 coefficiency_consistancy
 
+ggsave(filename = "../output/coefficiency_consistancy.png",
+       coefficiency_consistancy,
+       width = 6,
+       height = 4,
+       units = "in",
+       dpi = 300)
 ```
 
 
@@ -988,6 +982,24 @@ df_optics_BHF %>%
 ```
 
 # Apendix
+
+## MSE vs Diff
+
+```{r}
+dat_MSE_vs_true <- dat_estimate[,c("ID_prov","sample","method","diff_true_abs")] %>% 
+  left_join(dat_MSE,by = c("ID_prov","sample","method"))
+
+dat_MSE_vs_true %>% filter(method != "Dir") %>% 
+ggplot(.,aes(x = MSE,y = diff_true_abs,fill = method, color = method)) +
+  geom_point(alpha = .03) +
+  geom_smooth()+
+  facet_wrap(~ method) +
+  scale_fill_manual(values = c("#7ca982","#F05425")) +
+  scale_color_manual(values = c("#7ca982","#F05425")) +
+  # coord_cartesian(xlim = c(-.8, .8)) +
+  theme_minimal()
+
+```
 
 ## maps 
 
@@ -1041,7 +1053,7 @@ MSE_mean_FH_BHF_samples_aggre
 
 ```
 
-### estimates BHF vs FH vs Direct
+### Estimates BHF vs FH vs Direct
 
 ```{r}
 df_estimate_agg_samples_long <- dat_estimate %>% 
@@ -1113,7 +1125,7 @@ estimate_mean_Dir_FH_BHF_samples_aggre
 
 ```
 
-### variance 
+### Variance 
 Variance of the estimates pooled over 200 samples on a provincial level
 
 ```{r}
@@ -1166,7 +1178,8 @@ estimate_var_Dir_FH_BHF_samples_aggre
 #        units = "in",   
 #        dpi = 300)
 ```
-### distance to real values
+
+### Distance to real values
 
 ```{r}
 df_var_diff_true_agg_samples_long <- dat_estimate %>%
@@ -1323,7 +1336,9 @@ diff_true_Dir_FH_BHF_s1
 #        units = "in",   
 #        dpi = 300)
 ```
-### absolute difference
+
+### Absolute difference
+
 ```{r}
 df_abs_diff_true_agg_samples_long <- dat_estimate %>% 
   group_by(ID_prov,method) %>% 

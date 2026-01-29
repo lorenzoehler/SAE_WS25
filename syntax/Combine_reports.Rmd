@@ -21,12 +21,12 @@ html_files <- list.files("../syntax/",pattern = "html$")
 
 ## correct order and only include important ones
 # dput(html_files)
-html_files <- c("01-preprocessing.html", "01exA-variable_selection.html", "01exB-correlation_matrix.html", 
+html_files <- c("01-preprocessing.html", "01exA-variable_selection.html", 
 "02-processing.html", "03-sampling_frame.html", "03exA-SAE_models.html", 
 "05-processing_results.html", "05exp-visuals.html", "05expB-Bias.html")
 
 # Custom tab labels
-tab_labels <- c("Preprocess", "Variable Selection-1", "Variable Selection-2", "Dummy Coding", "Sampling-Frame", "Fit Modles","Results Prep","Results","Bias")
+tab_labels <- c("Preprocess", "Variable Selection", "Dummy Coding", "Sampling", "Fit Models","Results Prep","Results","Bias")
 
 
 # Create tab buttons with custom names

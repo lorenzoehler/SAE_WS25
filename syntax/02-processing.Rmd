@@ -1,7 +1,6 @@
 ---
-title: "preprocessing data for model"
+title: "Processing Data for Models"
 author: "Lorenz Alban Oehler"
-date: "The Date"
 output:
   html_document:
     theme: flatly      
@@ -24,7 +23,7 @@ library(data.table)
 library(openxlsx)
 ```
 
-# Introduction
+# Puropose
 The goal of this script is to transform the variables into form that is not only usable for the r lm, but also for emdi and saeTrafe. This means to convert factors into dummy coded variables. 
 
 For now only these variables will be used: 
@@ -32,9 +31,9 @@ p26_edad, p25_sexo, ocu_1d_13, urbrur, p40_lee
 
 To make this process also work for more than this one factor, I will first create a table in excel that maps the level to name, then will write a function in r that creates a new column var each dummy variable.
 
-# mapping of dummys
+# Mapping of Dummys
 
-## load in excel 
+## Load in Excel 
 The excel file is set up in the way, that the sheet names are the names of the variable, that is being recoded with a value and a label column, every value gets its own row, if a new level contains multiple levels the respecitve values all get the same label. 
 
 ```{r}
@@ -48,7 +47,7 @@ sheets <- getSheetNames("../data_raw/mapping/dummy_coding.xlsx")
 sheets %in% colnames(sample)
 ```
 
-## custom function 
+## Custom Function 
 This function makes it very easy to remap dummys via a tabel, which could be i.e an excel sheet, where inputs can more easily be by hand, fro grouping responses, or adding names translations etc. 
 
 ```{r}
@@ -127,7 +126,7 @@ saveRDS(sample_transformed,"../data_raw/samples/sample_for_model_building_transf
 ```
 
 
-## create 
+## Create Dummies
 
 For now the recoding of the dummy variables, always creats a rest category and a column for each level -- which does not always makes sense, thus some of the variables are deleted before being put into the equation, this is the one we will use for now. 
 
@@ -145,7 +144,7 @@ model_step$call
 
 ```
 
-# transform variables of census data
+# Transform Census Variables 
 
 ```{r}
 dat <- readRDS("../data_raw/large_files/dat_preprocessing-01.RDS")
@@ -173,7 +172,7 @@ dat_transformed <- dat %>% select(aestudio,p26_edad,ID_prov) %>% cbind(.,dummy_c
 saveRDS(dat_transformed,"../data_raw/2024_census/processed/dat_dummyCoding.RDS")
 ```
 
-# calculate auxillary data for FH model 
+# Calculate Auxillary Data for FH-Model 
 
 ```{r}
 ### calculate auxi
@@ -213,7 +212,7 @@ saveRDS(dat_census_aux,"../data_raw/2024_census/processed/census_aux_data_aggreg
 ```
 
 
-# True aestudio for provinces for comparison 
+# True "aestudio" on a Provincial Level
 
 ```{r}
 true_mean <- dat %>% group_by(ID_prov) %>% reframe(mean_aestudio_true = mean(aestudio,na.rm = T))

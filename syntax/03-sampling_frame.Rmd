@@ -1,7 +1,6 @@
 ---
-title: "Template Title"
+title: "Draw Samples"
 author: "Lorenz Alban Oehler"
-date: "The Date"
 output:
   html_document:
     theme: flatly      
@@ -17,7 +16,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Introduciton
+# Purpose
 In this script we  will draw the samples from the already processed census
 
 # load data
@@ -26,7 +25,7 @@ dat <- readRDS("../data_raw/2024_census/processed/dat_dummyCoding.RDS")
 ```
 
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 #### sample size for simulation
 n_size_simulation <- 200
 path_folder_samples <- "../data_raw/samples/transformed-2/"

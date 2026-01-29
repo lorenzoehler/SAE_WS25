@@ -1,5 +1,5 @@
 ---
-title: "Template Title"
+title: "Variable Selection"
 author: "Lorenz Alban Oehler"
 date: "The Date"
 output:
@@ -17,7 +17,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Introduction
+# Purpose
 This script serves as a playing ground to figure out which variables serve best to build a good model, to predict our dependend variable. 
 
 ```{r message=FALSE, warning=FALSE}
@@ -26,6 +26,11 @@ library(reactable)
 library(sf)
 library(data.table)
 library(tidyverse)
+library(corrplot)
+library(reshape2)
+library(igraph)
+library(psych)
+library(openxlsx)
 ```
 
 ```{r}
@@ -37,6 +42,7 @@ ncol(sample) ### abzügzlich der 5 nicht inhaltlichen Variablen
 ## how many colums are there
 sample %>% dim()
 ```
+
 ```{r}
 sample <- sample %>% as.data.frame()
 
@@ -45,13 +51,11 @@ tmp_variable <- c("i00","idep","iprov","imun","ID_mun","ID_prov")
 sample <- sample[,!colnames(sample) %in% tmp_variable]
 ```
 
-
 we have 164 variables, minus the 5 "administrative" ones results in 159 variables 
 
+# Selection
 
-# selection
-
-## filter for NAs
+## Filter NAs
 filter for variables which have lots of NAs 
 
 ```{r}
@@ -67,21 +71,18 @@ dat_table_nas <- tibble(
 hist(dat_table_nas$pecentageNAs,breaks = 40)
 reactable(dat_table_nas,filterable = T,compact = T,defaultPageSize = 15)
 ```
-## filter NAs below .5
+
 because we need values to actually contain information we will only take a look at the variables, that have at least 50% not NA
 
 ```{r}
 ### leads to deletion of 
-(dat_table_nas$pecentageNAs > .25) %>% sum()
+(dat_table_nas$pecentageNAs > .5) %>% sum()
 
 ## how many 
-dat_selection <- dat_table_nas %>% filter(pecentageNAs < .25)
+dat_selection <- dat_table_nas %>% filter(pecentageNAs < .5)
 ```
 
-
-
-
-# model with single predictor
+# Model With Single Predictor
 In the next step i will run just a single model to get a rough idea of how well two variables are connected and could be used for prediction
 
 Because of simplicity I will just ran a numeric and factorial model for each variable. I will exclude the variables which have way to many levels (over 500).
@@ -210,7 +211,6 @@ For exploratory purposes I will export the data frame as an excel.
 An older version of this exists which was used to select the variables, it has the suffix _filled. 
 
 ```{r}
-library(openxlsx)
 write.xlsx(dat_ko_variables,"../data_raw/2024_census/processed/dat_ko_variables_selection.xlsx")
 ```
 
@@ -232,10 +232,154 @@ dat_ko_variables_selection <- dat_ko_variables_selection[dat_ko_variables_select
 dat_ko_variables_selection <- dat_ko_variables_selection %>% filter(!variable %in%  c("p41a_nivel","p41b_curso","p41a_nivel_act","p41b_curso_act","nivel_edu","p38_asiste", "asiste"))
 ```
 
+# Cramers V 
 ```{r}
-### save to create correlation matrix only for these
-saveRDS(dat_ko_variables_selection$variable,"../data_raw/misc/list_variables_seleciton.RDS")
+
+sample$aestudio %>% is.na() %>% table()
+sample <- sample %>% as.data.frame()
+
+
+### filter with factors over 15
+idx <- sapply(sample,FUN = function(x) length(unique(x)) > 15)
+idx %>% table()
+sample2 <- sample[, !idx]
+
+### filter with na percentage higher then .5
+idx <- sapply(sample2,FUN = function(x) mean(is.na(x)) > .5)
+idx %>% table()
+sample2 <-  sample2[, !idx]
+
+### other non informative variables filter 
+sample2 <- sample2[,!colnames(sample2) %in% c("idep","imun")]
+
+sample_fast <- data.frame(lapply(sample2, function(x) {
+  if (is.factor(x)) as.numeric(x) else x
+}))
+
+sample2
+
+library(vcd)
+
+tmp_data <- matrix(ncol = 3,nrow = 0) %>% as.data.frame()
+colnames(tmp_data) <- c("v1","v2","cramresV")
+
+for(i in seq_along(sample2)){
+  for(j in seq_along(sample2)){
+  x1 <- sample2[,i] %>% as.factor()
+  x2 <- sample2[,j] %>% as.factor()
+  tbl <- table(x1, x2)
+  tmp_vec <- c(colnames(sample2)[i],colnames(sample2)[j],assocstats(tbl)$cramer[[1]]) %>% unlist()
+  tmp_data <- rbind(tmp_data,tmp_vec)
+    
+  }
+}
+
+colnames(tmp_data) <- c("v1","v2","cramresV")
 ```
+
+## Histogram
+
+```{r}
+tmp_data$cramresV <- tmp_data$cramresV %>% as.numeric
+tmp_data$cramresV %>% hist()
+```
+This is a histogramm showing the distribution of the correlation between all variables. 
+
+## Correlation Matrix
+
+```{r}
+cram_mat <- tmp_data %>%
+  filter(v1 != v2) %>%                  # remove self-pairs
+  pivot_wider(
+    names_from  = v2,
+    values_from = cramresV
+  ) %>%
+  column_to_rownames("v1") %>%
+  as.matrix()
+
+dim(cram_mat)
+```
+
+
+```{r corr_matrix,dev = "png",fig.width = 6,fig.height = 6,fig.path = "../output/",fig.ext = "png"}
+corrplot(
+  cram_mat,
+  method = "color",
+  type   = "lower",
+  tl.cex = 0.6
+)
+```
+
+
+```{r}
+cram_long <- melt(cram_mat)
+
+corr_matrix_2 <-  ggplot(cram_long, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, size = 6),
+    axis.text.y = element_text(size = 6)
+  ) +
+  labs(fill = "Cramér's V")
+
+corr_matrix_2
+
+ggsave("../output/corr_matrix-2.png",plot = corr_matrix_2,width = 10,height = 6, device = "png",dpi = 300)
+```
+
+```{r}
+dat_selection <- tmp_data
+
+### drop the pair with itself
+dat_selection <- dat_selection[dat_selection$v1 != dat_selection$v2,]
+dat_selection <- dat_selection[!is.na(dat_selection$cramresV),]
+dat_selection$cramresV %>% hist()
+
+dat_selection %>% reactable(.,compact = T,filterable = T)
+```
+
+```{r}
+### load in list from. A
+list_variables <- readRDS("../data_raw/misc/list_variables_seleciton.RDS")
+
+### filter for only these variables
+dat_selection <- dat_selection[dat_selection$v1 %in% list_variables,]
+
+dat_selection$pair_sorted <- apply(dat_selection[, c("v1","v2")], 1, function(x) paste(sort(x), collapse = "_"))
+dat_selection_unique <- dat_selection[!duplicated(dat_selection$pair_sorted), ]
+
+dat_selection_unique[,1:3] %>% reactable(.,compact = T,filterable = T)
+```
+
+```{r}
+# dat_selection_unique: v1, v2, cramresV
+threshold <- 0.75
+
+# keep only strong pairs
+strong_pairs <- dat_selection_unique %>% filter(cramresV > threshold)
+
+# build graph
+g <- graph_from_data_frame(strong_pairs[, c("v1", "v2")], directed = FALSE)
+
+# find connected components
+comp <- components(g)
+
+# create a dataframe with groups
+group_df <- data.frame(
+  var = names(comp$membership),
+  group = comp$membership
+)
+
+# optional: collapse variables in each group into one row
+grouped_vars <- group_df %>%
+  group_by(group) %>%
+  summarise(vars = paste(var, collapse = ", "), .groups = "drop")
+
+reactable(grouped_vars)
+```
+
 
 ```{r}
 # how many covariats currently in there
@@ -321,7 +465,7 @@ formula <- paste("aestudio ~",paste(c("p26_edad",candidates$variable),collapse =
 formula <- formula %>% as.formula()
 ```
 
-# linear models
+# Linear Models
 
 ```{r}
 # sample$p332_idiohab2_cod[is.na(sample$p332_idiohab2_cod)] <- "Missing"
@@ -337,10 +481,9 @@ for (col in candidates$variable) {
 lm(formula = formula,data = sample_candidates) %>% summary()
 ```
 
+## Step-Wise-Regression: AIC
+### Backward
 
-## step AIC
-
-### backward
 ```{r}
 model_full <- lm(formula = formula,data = sample_candidates)
 model_null <- lm(formula = aestudio ~ 1,data = sample_candidates)
@@ -367,29 +510,7 @@ model_forward$call %>% print()
 model_both$call %>% print() 
 ```
 
-
-Result of the backwards selection:
-lm(formula = aestudio ~ p26_edad + ocu_1d_13 + p40_lee + p53_ecivil + 
-    p42d_comuni + v11_basura + v06_piso + p31_afiliado + p30b_caja + 
-    v04_revoq + v18c_auto + v18a_bici + v18h_calefon + p37_lugres5 + 
-    p25_sexo + v20a_emi + v12_cocina + pet_19, data = sample_candidates)
-
-forwards    
-lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v06_piso + 
-    p31_afiliado + v11_basura + p53_ecivil + p25_sexo + v04_revoq + 
-    p42d_comuni + v12_cocina + v18a_bici + p30b_caja + p37_lugres5 + 
-    v18c_auto + v18h_calefon + pet_19 + v20a_emi + v08_aguadist, 
-    data = sample_candidates)
-
-both
-lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v06_piso + 
-    p31_afiliado + v11_basura + p53_ecivil + p25_sexo + v04_revoq + 
-    p42d_comuni + v12_cocina + v18a_bici + p30b_caja + p37_lugres5 + 
-    v18c_auto + v18h_calefon + pet_19 + v20a_emi + v08_aguadist, 
-    data = sample_candidates)
-
-
-## step BIC    
+## Step-Wise-Regression: BIC
     
 ```{r}
 model_backward_BIC <- step(model_full,direction = "backward",trace = 0, k = log(nrow(sample_candidates)))
@@ -411,19 +532,20 @@ model_backward_BIC$call %>% print()
 model_forward_BIC$call %>% print() 
 model_both_BIC$call %>% print() 
 ```
+model_backward_BIC$call %>% print() 
+model_forward_BIC$call %>% print() 
+model_both_BIC$call %>% print() 
 
-Backward
-lm(formula = aestudio ~ p26_edad + ocu_1d_13 + p40_lee + urbrur + 
-    p30b_caja + v04_revoq + v18c_auto + v18h_calefon + p25_sexo + 
-    v12_cocina, data = sample_candidates)
+```{r}
+# model_backward_BIC %>% summary()
+# model_forward_BIC %>% summary()
+# model_both_BIC %>% summary()
 
-Forward
-lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v04_revoq + 
-    p30b_caja + p25_sexo + urbrur, data = sample_candidates)
-    
-Both
-lm(formula = aestudio ~ p40_lee + ocu_1d_13 + p26_edad + v04_revoq + 
-    p30b_caja + p25_sexo + urbrur, data = sample_candidates)
+AIC(model_backward_BIC)
+AIC(model_forward_BIC)
+AIC(model_both_BIC)
+```
+
 
 
 ```{r}
