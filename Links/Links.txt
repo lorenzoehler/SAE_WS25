@@ -1,9 +1,0 @@
-## Haushaltsdaten doku
-https://datacatalog.ihsn.org/catalog/11532/data-dictionary/F17?file_name=EH2021_Vivienda
-
-## census software redatam
-https://redatam.org/en/software
-
-
-## link of the new shape file
-https://data.humdata.org/dataset/cod-ab-bol
