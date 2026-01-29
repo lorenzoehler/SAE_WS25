@@ -1,5 +1,5 @@
 ---
-title: "processing results"
+title: "Processing Results"
 author: "Lorenz & Niklas"
 output:
   html_document:
@@ -24,12 +24,12 @@ library(reactable)
 # Introduction
 In this script the data will be processed so that minimal processing has to be done for the visualizations
 
-## summary data
+## Summary Data
 This is data that was immediately generated during the Iteration over the 200 samples
 
 ```{r}
 dat <- read.csv("../data_raw/simulation/models/summary_final.csv")
-true_values <- readRDS("../data_raw/misc/true_mean_aestudio.RDS")
+true_values <- readRDS("../data_raw/2024_census/processed/true_mean_aestudio.RDS")
 
 x <- dat
 fun.round_numeric <- function(x, digit = 3) {
@@ -41,7 +41,7 @@ fun.round_numeric <- function(x, digit = 3) {
 dat %>% fun.round_numeric %>% reactable(.,compact = T,filterable = T)
 ```
 
-### predictors dropped for BHF
+### Predictors Dropped for BHF
 
 ```{r}
 dat$bhf_dropped_predictors %>% table()
@@ -49,9 +49,9 @@ dat$bhf_dropped_predictors %>% table()
 
 which means that only ocu_military was dropped but this was dropped 9 times.
 
-# long format
+# Long Format
 
-## MSE and estimators 
+## MSE and Estimators 
 
 ```{r}
 ## violin

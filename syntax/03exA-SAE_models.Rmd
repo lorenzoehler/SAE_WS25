@@ -30,7 +30,7 @@ library(emdi)
 library(tidyverse)
 ```
 
-# Introduction
+# Purpose
 In this script the SAE models FH and BHF will be calculated.   
 
 The Variable selection resulted that we will use this Formula, for further specification of the Models.
@@ -41,7 +41,7 @@ aestudio ~ p26_edad + ocu_military + ocu_manager +
     urbrur_urban + health_insurance_yes + interior_plastered_yes + 
     v04_revoq_Missing + car_yes + water_heater_yes + kitchen_yes
 
-# loading Data
+# Loading Data
 
 ```{r}
 ### auxillary data needed to calculate FH model
@@ -80,9 +80,9 @@ sample$aestudio %>% table()
 
 # FH model
 
-## combine data
+## Combine Data
 
-### direct estimate of sample 
+### Direct Estimate of Sample 
 
 We have a simple random sample, which makes calculating the sample variance much easier, and we dont need second order inclusion criterion, nor do we need to use bootsrap or jacknife, to calculate the direct estimate and the domain specific variance. 
 
@@ -135,7 +135,7 @@ class(direct_rec) <- c("direct", "emdi")
 # direct %>% class()
 ```
 
-#### bootstrap vs analytic direct estimation
+#### Bootstrap vs Analytic Direct Estimation
 
 ```{r}
 # direct_n50 <- emdi::direct(y = "aestudio", smp_data = sample ,smp_domains = "ID_prov",var = T,na.rm = T,B = 50)
@@ -154,7 +154,7 @@ plot(tmp_dat$Mean,tmp_dat$Var_Mean)
 direct <- direct_n500
 ```
 
-### combine with auxillary data
+### Combine with Auxillary Data
 
 ```{r}
 combined_data <- merge(direct_estimates,dat_census_aux,by = "ID_prov")
@@ -204,7 +204,7 @@ print(fh_model_full_unoptimized)
 # (sqrt(fh_model_full$MSE$FH)/fh_model_full$ind$FH * 100) %>% mean()
 # fh_model_full_unoptimized %>% summary()
 ```
-### FH step function
+### FH Step
 
 ```{r}
 ### model selection
@@ -234,7 +234,7 @@ fh_model_full %>% summary()
 ```
 
 
-### FH dignostics 
+### FH Dignostics 
 ```{r}
 p_dig_FH <- plot(fh_model_full)
 p_dig_FH_comp <- emdi::compare_plot(model = fh_model_full,direct = direct_estimates,MSE = T,CV = T)
@@ -243,7 +243,7 @@ p_dig_FH
 p_dig_FH_comp
 ```
 
-# log FH
+# Log FH
 ```{r}
 fh_model_full_log <- fh(
 fixed = fh_formula,
@@ -261,7 +261,7 @@ fh_model_full_log$MSE$FH %>% mean()
 
 
 # BHF model
-## process data 
+## Preprocess Data 
 
 ```{r}
 ### create vector with sizo of domains
@@ -300,7 +300,7 @@ BHF_model_full_unoptimized <-  NER_Trafo(fixed = bhf_formula
 BHF_model_full_unoptimized$MSE$Mean %>% mean()
 ```
 
-## step function with intercept
+## Step Function
 
 ```{r message=FALSE, warning=FALSE}
 library(lmerTest)
@@ -344,14 +344,14 @@ BHF_model_full %>% print()
 ```
 
 
-## diagnostics 
+## Diagnostics 
 
 ```{r}
 p_dig_BHF <- plot(BHF_model_full)
 p_dig_BHF_comp <- saeTrafo::compare_plot(model = BHF_model_full,direct = direct,MSE = T,CV = T)
 ```
 
-# pretty diagnostics
+# Pretty Diagnostics
 
 ## FH
 
