@@ -75,7 +75,7 @@ bhf_formula <- aestudio ~ p26_edad + ocu_military + ocu_manager +
     v04_revoq_Missing + car_yes + water_heater_yes + kitchen_yes
 
 sample$aestudio %>% hist()
-
+sample$aestudio %>% table()
 ```
 
 # FH model
@@ -133,17 +133,24 @@ class(direct_rec) <- c("direct", "emdi")
 
 # direct_rec %>% class()
 # direct %>% class()
+```
 
+#### bootstrap vs analytic direct estimation
 
-# direct <- emdi::direct(y = "aestudio", smp_data = sample ,smp_domains = "ID_prov",var = T,na.rm = T,B = 500)
-# saveRDS(direct,"../data_raw/simulation/processed/direct_500_bootstraps.RDS")
-direct <- readRDS("../data_raw/simulation/processed/direct_500_bootstraps.RDS")
+```{r}
+# direct_n50 <- emdi::direct(y = "aestudio", smp_data = sample ,smp_domains = "ID_prov",var = T,na.rm = T,B = 50)
+# direct_n500 <- emdi::direct(y = "aestudio", smp_data = sample ,smp_domains = "ID_prov",var = T,na.rm = T,B = 500)
+# saveRDS(direct_n50,"../data_raw/simulation/processed/direct_50_bootstraps.RDS")
+# saveRDS(direct_n500,"../data_raw/simulation/processed/direct_500_bootstraps.RDS")
+direct_n500 <- readRDS("../data_raw/simulation/processed/direct_500_bootstraps.RDS")
+direct_n50 <- readRDS("../data_raw/simulation/processed/direct_50_bootstraps.RDS")
 
-# tmp_dat <- merge(direct$MSE[,c("Domain","Mean")],direct_estimates[,c("ID_prov","Var_Mean")],by.x = "Domain", by.y = "ID_prov")
-# plot(tmp_dat$Mean,tmp_dat$Var_Mean)
-# direct$successful_bootstraps
+tmp_dat <- merge(direct_n50$MSE[,c("Domain","Mean")],direct_estimates[,c("ID_prov","Var_Mean")],by.x = "Domain", by.y = "ID_prov")
+plot(tmp_dat$Mean,tmp_dat$Var_Mean)
 
-# cor.test(tmp_dat$Mean,tmp_dat$Var_Mean)
+tmp_dat <- merge(direct_n500$MSE[,c("Domain","Mean")],direct_estimates[,c("ID_prov","Var_Mean")],by.x = "Domain", by.y = "ID_prov")
+plot(tmp_dat$Mean,tmp_dat$Var_Mean)
+
 ```
 
 ### combine with auxillary data
@@ -164,7 +171,7 @@ domains = "ID_prov",
 method = "reml",
 MSE = TRUE
 )
-
+# fh_model_null %>% summary()
 fh_model_null$MSE$FH %>% mean()
 ```
 
@@ -180,6 +187,7 @@ domains = "ID_prov",
 method = "ml",
 MSE = TRUE
 )
+fh_model_full_step %>% summary()
 
 fh_model_full_unoptimized <- fh(
 fixed = fh_formula,
@@ -191,18 +199,26 @@ MSE = TRUE
 )
 
 fh_model_full_unoptimized$MSE$FH %>% mean()
+print(fh_model_full_unoptimized)
 # (sqrt(fh_model_full$MSE$FH)/fh_model_full$ind$FH * 100) %>% mean()
+# fh_model_full_unoptimized %>% summary()
 ```
 ### FH step function
 
 ```{r}
 ### model selection
-emdi::step(fh_model_full_step,direction ="both")
+# emdi::step(fh_model_full_step,direction ="both",trace = 0) ### trace null doesn work  
+fh_model_step <- suppressWarnings(
+  suppressMessages(
+    emdi::step(fh_model_full_step, direction = "both", trace = FALSE)
+  )
+)
+coefficients(fh_model_step)
+
 fh_formula_optimized <- Mean ~ mean_p26_edad + share_ocu_professional + share_ocu_technician +
     share_ocu_adminSupport + share_ocu_serviceSales + share_sex_male +
     share_read_knowing + share_urbrur_urban + share_health_insurance_yes +
     share_v04_revoq_Missing + share_car_yes + share_kitchen_yes
-
 
 ### which is the optimized one
 fh_model_full <- fh(fixed = fh_formula_optimized,
@@ -210,6 +226,8 @@ fh_model_full <- fh(fixed = fh_formula_optimized,
     method = "reml", MSE = TRUE)
 
 fh_model_full$MSE$FH %>% mean()
+fh_model_full %>% print()
+fh_model_full %>% summary()
 # step(fh_model_full,direction ="backward",criteria = "BIC")
 
 ```
@@ -226,7 +244,6 @@ p_dig_FH_comp
 
 # log FH
 ```{r}
-
 fh_model_full_log <- fh(
 fixed = fh_formula,
 vardir = "Var_Mean",
@@ -284,8 +301,12 @@ BHF_model_full_unoptimized$MSE$Mean %>% mean()
 
 ## step function with intercept
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(lmerTest)
+```
+
+
+```{r}
 ### model selection
 full_model <- lm(bhf_formula,data = sample)
 bhf_formula_intercept <- aestudio ~ p26_edad + ocu_military + ocu_manager + ocu_professional + 
@@ -297,7 +318,7 @@ bhf_formula_intercept <- aestudio ~ p26_edad + ocu_military + ocu_manager + ocu_
 lmer_model <- lmer(bhf_formula_intercept,data = sample)
 # lmer_model %>% summary()
 
-step(lmer_model)
+step(lmer_model,trace = 0)
 ```
 
 Suggested model by step funktion
@@ -318,6 +339,9 @@ BHF_model_full <-  NER_Trafo(fixed = bhf_formula_optimized
 )
 
 BHF_model_full$MSE$Mean %>% mean()
+BHF_model_full %>% print()
+
+BHF_model_full$model$
 ```
 
 
@@ -340,7 +364,7 @@ p1 <- p_dig_FH$density_res
 p2 <- p_dig_FH$density_res +
   # scale_color_manual(values = c("red")) +
   # scale_fill_manual(values = c("red")) +
-  geom_density(color = "#FF8552",fill = "#FF8552",alpha = .15, linewidth = .4) +
+  geom_density(color = "#FF8552",fill = "#FF8552",alpha = .3, linewidth = 1.2) +
    # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   theme_minimal() +
     labs(
@@ -356,7 +380,7 @@ p3 <- p_dig_FH$density_ran
 p4 <- p_dig_FH$density_ran +
   # scale_color_manual(values = c("red")) +
   # scale_fill_manual(values = c("red")) +
-  geom_density(color = "#FF8552",fill = "#FF8552",alpha = .15, linewidth = .4) +
+  geom_density(color = "#FF8552",fill = "#FF8552",alpha = .3, linewidth = 1.2) +
    # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   theme_minimal() +
     labs(
@@ -404,6 +428,7 @@ p9 <- p_dig_FH_comp$ordered_MSE_FH
 
 p10 <- p_dig_FH_comp$ordered_MSE_FH +
   scale_color_manual(values = c("#9A031E","#FF8552")) +
+  geom_point(size = 2) +
   theme_minimal() +
     labs(
     title = "MSE: direct vs FH",
@@ -445,7 +470,7 @@ p1 <- p_dig_BHF$density_res
 p2 <- p_dig_BHF$density_res +
   # scale_color_manual(values = c("red")) +
   # scale_fill_manual(values = c("red")) +
-  geom_density(color = "#7ca982",fill = "#7ca982",alpha = .15, linewidth = .4) +
+  geom_density(color = "#7ca982",fill = "#7ca982",alpha = .3, linewidth = 1.2) +
    # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   theme_minimal() +
     labs(
@@ -461,7 +486,7 @@ p3 <- p_dig_BHF$density_ran
 p4 <- p_dig_FH$density_ran +
   # scale_color_manual(values = c("red")) +
   # scale_fill_manual(values = c("red")) +
-  geom_density(color = "#7ca982",fill = "#7ca982",alpha = .15, linewidth = .4) +
+  geom_density(color = "#7ca982",fill = "#7ca982",alpha = .3, linewidth = 1.2) +
    # geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
   theme_minimal() +
     labs(
@@ -509,6 +534,7 @@ p9 <- p_dig_BHF_comp$ordered_MSE_Mean
 
 p10 <- p_dig_BHF_comp$ordered_MSE_Mean +
   scale_color_manual(values = c("#4e6b57","#b5c5b4")) +
+  geom_point(size = 2) +
   theme_minimal() +
     labs(
     title = "MSE: direct vs BHF",

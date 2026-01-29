@@ -1,0 +1,253 @@
+---
+title: "Bias Exploration"
+author: "Lorenz Alban Oehler"
+output:
+  html_document:
+    theme: flatly      
+    toc: true          
+    toc_float: true    
+    toc_depth: 4       
+    highlight: tango   
+    df_print: paged    
+    css: styles.css 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(saeTrafo)
+library(emdi)
+library(cowplot)
+library(reactable)
+```
+
+```{r}
+dat_MSE <- readRDS("../data_raw/simulation/processed/df_MSE_long.RDS")
+dat_estimate <- readRDS("../data_raw/simulation/processed/df_estimates_long.RDS")
+```
+
+
+# Introduction
+This script explores how the Bias which is induced by the model Estimation can be visualized and showsn
+
+# Compared to Real Domain Mean
+## For All Domains
+
+```{r fig.height= 8,fig.width= 5}
+bias <- dat_estimate %>%
+  group_by(ID_prov, method, mean_aestudio_true) %>%
+  reframe(mean_distance = mean(diff_true),
+          var_distance = var(diff_true))
+
+ggplot(bias,
+             aes(
+               x = mean_distance,
+               y = mean_aestudio_true,
+               fill = method,
+               color = method
+             )) +
+  geom_point(size = 1) +
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    linewidth = 0.8,
+    linetype = "solid"
+  ) +
+  facet_wrap( ~ method, nrow = 3) +
+  scale_fill_manual(values = c("#7ca982", "#334155", "#F05425")) +
+  scale_color_manual(values = c("#7ca982", "#334155", "#F05425")) +
+  coord_cartesian(xlim = c(-.8, .8)) +
+  theme_minimal() +
+  labs(title = "Analyse der Bias-Strukturen", x = "Difference from true value", y = "True provincial mean") +
+theme(
+    legend.position = "right",
+    legend.key.size = unit(1.3, "cm"),
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 8)
+  )
+
+```
+
+
+## Singel Domains
+
+```{r}
+### region with very low mean
+region <- "BO0504"
+dat_estimate %>% 
+  filter(ID_prov == region) %>%
+  # filter(method != "Dir") %>% 
+  ggplot(.,aes(x = method,y = diff_true)) +
+  geom_boxplot(width = 0.1, fill="white") +
+  geom_line(aes(group = sample), alpha = .15)+
+  # geom_jitter(alpha = .2) +
+  geom_violin(alpha = .3) + 
+  labs(title = paste("distance to true value, only region",region)) +
+  theme_minimal()
+```
+
+
+```{r}
+### region with very high mean
+region <- "BO0201"
+dat_estimate %>% 
+  filter(ID_prov == region) %>%
+  # filter(method != "Dir") %>% 
+  ggplot(.,aes(x = method,y = diff_true)) +
+  geom_boxplot(width = 0.1, fill="white") +
+  geom_line(aes(group = sample), alpha = .15)+
+  # geom_jitter(alpha = .2) +
+  geom_violin(alpha = .3) + 
+  labs(title = paste("distance to true value, only region",region)) +
+  theme_minimal()
+```
+
+# Model Assumptions 
+Because the Model was selected only for one specific sample we suspect the model assupmtions might not hold for all of the samples, due to overfitting. Thus we will investigat this via looking at some of the diagnostic plots for some samples 
+
+To select the samples for which we will look at the diagnostics, we will select the samples for which the BHF and FH and the estimats that were the furthest away from the real value and also a sample were they were fairly close. 
+
+## Difference to True Value
+
+```{r}
+dat_estimate %>% 
+  filter() %>% reactable(.,filterable = T)
+```
+
+
+075,152 FH
+082,047 BHF 
+151,100 FH, BHF
+
+```{r  echo=TRUE, results="hide", fig.show="hide"}
+sample_075_FH <- readRDS("../data_raw/simulation/models/models_rds/sample_075_FH_full.rds")
+sample_075_FH_plots <- sample_075_FH %>% plot()
+
+sample_152_FH <- readRDS("../data_raw/simulation/models/models_rds/sample_152_FH_full.rds")
+sample_152_FH_plots <- sample_152_FH %>% plot()
+
+sample_151_FH <- readRDS("../data_raw/simulation/models/models_rds/sample_151_FH_full.rds")
+sample_151_FH_plots <- sample_151_FH %>% plot()
+```
+
+
+```{r}
+plot_grid(
+  plot_grid(sample_075_FH_plots$density_res, sample_075_FH_plots$density_ran),
+  plot_grid(sample_152_FH_plots$density_res, sample_152_FH_plots$density_ran),
+  plot_grid(sample_151_FH_plots$density_res, sample_151_FH_plots$density_ran),
+  nrow = 3,
+  labels = c("FH 075", "FH 152", "FH 151"),
+  label_x = 0,     # completely to the left
+  hjust = 0,       # left-justify
+  label_size = 8  # adjust size if needed
+)
+```
+
+082,047 BHF 
+
+```{r  echo=TRUE, results="hide", fig.show="hide"}
+sample_082_BHF <- readRDS("../data_raw/simulation/models/models_rds/sample_082_BHF.rds")
+sample_082_BHF_plots <- sample_082_BHF %>% plot()
+
+sample_047_BHF <- readRDS("../data_raw/simulation/models/models_rds/sample_047_BHF.rds")
+sample_047_BHF_plots <- sample_047_BHF %>% plot()
+
+sample_100_BHF <- readRDS("../data_raw/simulation/models/models_rds/sample_100_BHF.rds")
+sample_100_BHF_plots <- sample_100_BHF %>% plot()
+```
+
+
+```{r}
+plot_grid(
+  plot_grid(sample_082_BHF_plots$density_res, sample_082_BHF_plots$density_ran),
+  plot_grid(sample_047_BHF_plots$density_res, sample_047_BHF_plots$density_ran),
+  plot_grid(sample_100_BHF_plots$density_res, sample_100_BHF_plots$density_ran),
+  nrow = 3,
+  labels = c("BHF 082", "BHF 047", "BHF 100"),
+  label_x = 0,     # completely to the left
+  hjust = 0,       # left-justify
+  label_size = 8  # adjust size if needed
+)
+```
+
+## Small MSE
+
+```{r}
+dat_MSE %>% 
+  filter() %>% reactable(.,filterable = T)
+```
+
+095,064 small MSE FH
+110, 028 high MSE FH
+
+
+```{r  echo=TRUE, results="hide", fig.show="hide"}
+list_FH <- c("095","064","110", "028")
+
+list_plots <- list()
+
+for(i in seq_along(list_FH)){
+  tmp_model <- readRDS(paste0("../data_raw/simulation/models/models_rds/sample_",list_FH[i],"_FH_full.rds"))
+  tmp_plots <- plot(tmp_model)
+  tmp_final_plot <- plot_grid(tmp_plots$density_res,tmp_plots$density_ran)
+  list_plots[[i]] <- tmp_final_plot
+}
+```
+
+
+```{r fig.height= 8,fig.width= 5}
+list_FH_names <- paste0("FH ", c("095","064","110", "028"))
+plot_grid(
+  list_plots[[1]],
+  list_plots[[2]],
+  list_plots[[3]],
+  list_plots[[4]],
+  nrow = 4,
+  labels = list_FH_names,
+  label_x = 0,     # completely to the left
+  hjust = 0,       # left-justify
+  label_size = 8  # adjust size if needed
+)
+```
+
+137,027 small MSE BHF
+075, 068 high MSE BHF
+
+
+```{r  echo=TRUE, results="hide", fig.show="hide"}
+list_BHF <- c("137","027","075", "068")
+list_plots <- list()
+
+for(i in seq_along(list_FH)){
+  tmp_model <- readRDS(paste0("../data_raw/simulation/models/models_rds/sample_",list_FH[i],"_BHF.rds"))
+  tmp_plots <- invisible(plot(tmp_model))
+  tmp_final_plot <- plot_grid(tmp_plots$density_res,tmp_plots$density_ran)
+  list_plots[[i]] <- tmp_final_plot
+}
+```
+
+
+```{r fig.height= 8,fig.width= 5}
+list_BHF_names <- paste0("BHF ",c("137","027","075", "068"))
+plot_grid(
+  list_plots[[1]],
+  list_plots[[2]],
+  list_plots[[3]],
+  list_plots[[4]],
+  nrow = 4,
+  labels = list_BHF_names,
+  label_x = 0,     # completely to the left
+  hjust = 0,       # left-justify
+  label_size = 8  # adjust size if needed
+)
+```
+
+
