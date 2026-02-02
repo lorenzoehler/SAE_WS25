@@ -1418,3 +1418,138 @@ abs_diff_true_Dir_FH_BHF_samples_aggre
 #        units = "in",   
 #        dpi = 300)
 ```
+
+# Shrinkage 
+
+## FH
+
+```{r}
+lst_files <- list.files("../data_raw/simulation/models/models_rds/",full.names = T)
+lst_BHF_files <- grep(pattern = "BHF",x = lst_files,value = T)
+lst_FH_files <- grep(pattern = "FH_full",x = lst_files,value = T)
+list_BHF_models <- list_FH_models[[i]]
+
+list_BHF_models <- lapply(lst_BHF_files, function(x) readRDS(x))
+list_FH_models <- lapply(lst_FH_files, function(x) readRDS(x))
+
+
+# test <- list_FH_models[[i]]
+# test$model$variance
+
+
+list_FH_variance_u <- do.call(
+  rbind,
+  lapply(seq_along(list_FH_models), function(i) {
+    sigma <- list_FH_models[[i]]$model$variance
+    sigma_e <- list_FH_models[[i]]$framework$vardir
+
+    data.frame(
+      sample = i,
+      variance = sigma
+    )
+  })
+)
+
+
+list_FH_variance_u %>% ggplot(.,aes(x = sample,y = variance)) +
+  geom_line() +
+  theme_minimal()
+```
+
+
+
+
+```{r}
+list_FH_shrink <- do.call(
+  rbind,
+  lapply(seq_along(list_FH_models), function(i) {
+    
+    table_tmp    <- data.frame( 
+      "sample" = i,
+      "Domain" = list_FH_models[[i]]$MSE$Domain,
+      "simga_u" = list_FH_models[[i]]$model$variance,
+      "sigma_ed" = list_FH_models[[i]]$framework$vardir)
+    
+    table_tmp$gamma_d <- table_tmp$simga_u / (table_tmp$simga_u + table_tmp$sigma_ed)
+    table_tmp
+  })
+)
+
+list_FH_shrink %>% 
+  ggplot(.,aes(x = sample,y = gamma_d, colour = Domain)) +
+  geom_line(alpha = .1) + 
+  theme_classic()+
+  theme(legend.position = "none")
+```
+
+
+```{r}
+list_FH_shrink %>% 
+  filter(Domain == "BO0101") %>% 
+  ggplot(.,aes(x = sample,y = gamma_d)) +
+  geom_line() + 
+  theme_classic()
+
+```
+
+## BHF
+
+```{r}
+# test <- list_BHF_models[[i]]
+# test$model$sigma
+
+# list_BHF_variance_e <- do.call(
+#   rbind,
+#   lapply(seq_along(list_BHF_models), function(i) {
+#     sigma <- list_BHF_models[[i]]$model$sigma
+#     data.frame(
+#       sample = i,
+#       variance = sigma
+#     )
+#   })
+# )
+# 
+# list_BHF_variance_e %>% ggplot(.,aes(x = sample,y = variance)) +
+#   geom_line() +
+#   theme_minimal()
+
+list_BHF_variance_u <- do.call(
+  rbind,
+  lapply(seq_along(list_BHF_models), function(i) {
+    sigma <- VarCorr(list_BHF_models[[i]]$model)[1,"StdDev"]
+    data.frame(
+      sample = i,
+      variance = sigma
+    )
+  })
+)
+
+list_BHF_variance_u$variance <- list_BHF_variance_u$variance %>% as.numeric()
+
+list_BHF_variance_u %>% ggplot(.,aes(x = sample,y = variance)) +
+  geom_line() +
+  theme_minimal()
+```
+
+```{r}
+list_BHF_shrink <- do.call(
+  rbind,
+  lapply(seq_along(list_BHF_models), function(i) {
+    table_tmp    <- data.frame( 
+      "sample" = i,
+      # "Domain" = list_BHF_models[[i]]$MSE$Domain,
+      "simga_u" = VarCorr(list_BHF_models[[i]]$model)[1,"StdDev"] %>% as.numeric(),
+      "sigma_ed" = VarCorr(list_BHF_models[[i]]$model)[2,"StdDev"] %>% as.numeric())
+    
+    table_tmp$gamma_d <- table_tmp$simga_u / (table_tmp$simga_u + (table_tmp$sigma_ed/20))
+    table_tmp
+  })
+)
+
+list_BHF_shrink %>% ggplot(.,aes(x = sample,y = gamma_d)) +
+  geom_line() +
+  theme_minimal()
+
+```
+
+

@@ -293,11 +293,12 @@ BHF_model_full_unoptimized <-  NER_Trafo(fixed = bhf_formula
   , pop_area_size = vec_pop_size
   , pop_domains = "ID_prov"
   , transformation = "no"
-  , seed = 2022
+  , seed = 2022,
   , MSE = T
 )
 
 BHF_model_full_unoptimized$MSE$Mean %>% mean()
+BHF_model_full_unoptimized %>% summary(())
 ```
 
 ## Step Function
