@@ -1,0 +1,178 @@
+---
+title: "check_randomeintercept"
+format: html
+editor: visual
+---
+```{r}
+library(here)
+knitr::opts_knit$set(root.dir = here::here())
+```
+
+```{r}
+library(tidyverse)
+library(nlme)
+
+# --- FH: extract random effects from all samples ---
+fh_files <- list.files(
+  "data_raw/simulation/models/models_rds",
+  pattern = "_FH_full\\.rds$",
+  full.names = TRUE
+)
+
+fh_re_list <- list()
+
+
+# i <- 1
+for (i in seq_along(fh_files)) {
+  tmp_model  <- readRDS(fh_files[i])
+  sample_id  <- sub(".*sample_(\\d+)_FH_full\\.rds", "\\1", basename(fh_files[i]))
+  fh_re_list[[i]] <- data.frame(
+    sample    = sample_id,
+    Domain    = tmp_model$ind$Domain,
+    re        = as.numeric(tmp_model$model$random_effects),
+    method    = "FH"
+  )
+}
+# fh_re_list[[i]]$re
+# fh_re_list[[i]]$Domain
+
+df_fh_re <- bind_rows(fh_re_list)
+
+# --- BHF: extract random effects from all samples ---
+bhf_files <- list.files(
+  "data_raw/simulation/models/models_rds",
+  pattern = "_BHF\\.rds$",
+  full.names = TRUE
+)
+
+bhf_re_list <- list()
+
+for (i in seq_along(bhf_files)) {
+  tmp_model  <- readRDS(bhf_files[i])
+  sample_id  <- sub(".*sample_(\\d+)_BHF\\.rds", "\\1", basename(bhf_files[i]))
+  re_df      <- ranef(tmp_model$model)
+  bhf_re_list[[i]] <- data.frame(
+    sample    = sample_id,
+    Domain    = rownames(re_df),
+    re        = re_df[["(Intercept)"]],
+    method    = "BHF"
+  )
+}
+
+df_bhf_re <- bind_rows(bhf_re_list)
+
+# --- Combine and average per domain ---
+df_re_avg <- bind_rows(df_fh_re, df_bhf_re) |>
+  group_by(Domain, method) |>
+  summarise(mean_re = mean(re),
+            var_re = var(re),
+            .groups = "drop")
+
+cat("FH samples loaded:", length(fh_files), "\n")
+cat("BHF samples loaded:", length(bhf_files), "\n")
+head(df_re_avg)
+
+
+ggplot(df_re_avg, aes(x = reorder(Domain, mean_re), y = mean_re, color = method)) +
+  geom_point(size = 1.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  facet_wrap(~ method, nrow = 2) +
+  scale_color_manual(values = c("#334155", "#F05425")) +
+  labs(
+    title = "Average Random Intercepts per Domain",
+    x = "Domain (sorted by mean RE)",
+    y = "Mean Random Intercept"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "none"
+  )
+```
+
+
+```{r}
+library(sf)
+
+shp <- st_read("data_raw/shape/bol_adm_mdrt_2013/bol_admbnd_adm2_mdrt_2013_v01.shp", quiet = TRUE)
+head(shp)
+shp_re <- shp |>
+  left_join(df_re_avg, by = c("ADM2_PCODE" = "Domain"))
+
+ggplot(shp_re) +
+  geom_sf(aes(fill = mean_re), color = "white", linewidth = 0.2) +
+  facet_wrap(~ method) +
+  scale_fill_gradient2(
+    low = "#F05425", mid = "grey95", high = "#334155",
+    midpoint = 0,
+    name = "Mean RE"
+  ) +
+  labs(title = "Average Random Intercepts per Domain") +
+  theme_void() +
+  theme(
+    strip.text = element_text(size = 11, face = "bold"),
+    legend.position = "bottom",
+    legend.key.width = unit(1.5, "cm")
+  )
+```
+
+```{r}
+ggplot(shp_re) +
+  geom_sf(aes(fill = var_re), color = "white", linewidth = 0.2) +
+  facet_wrap(~ method) +
+  scale_fill_gradient2(
+    low = "#F5F500", mid = "#1B998B", high = "#111111",
+    midpoint = 0,
+    name = "Mean RE"
+  ) +
+  labs(title = "Average Variance of the Random Intercepts per Domain") +
+  theme_void() +
+  theme(
+    strip.text = element_text(size = 11, face = "bold"),
+    legend.position = "bottom",
+    legend.key.width = unit(1.5, "cm")
+  )
+```
+
+```{r}
+# Change to inspect a different sample
+sample_nr <- "075"
+
+fh_single  <- readRDS(paste0("data_raw/simulation/models/models_rds/sample_", sample_nr, "_FH_full.rds"))
+bhf_single <- readRDS(paste0("data_raw/simulation/models/models_rds/sample_", sample_nr, "_BHF.rds"))
+
+re_bhf_single <- ranef(bhf_single$model)
+
+df_re_single <- bind_rows(
+  data.frame(
+    Domain = fh_single$ind$Domain,
+    re     = as.numeric(fh_single$model$random_effects),
+    method = "FH"
+  ),
+  data.frame(
+    Domain = rownames(re_bhf_single),
+    re     = re_bhf_single[["(Intercept)"]],
+    method = "BHF"
+  )
+)
+
+
+shp |>
+  left_join(df_re_single, by = c("ADM2_PCODE" = "Domain")) |>
+  ggplot() +
+  geom_sf(aes(fill = re), color = "white", linewidth = 0.2) +
+  facet_wrap(~ method) +
+  scale_fill_gradient2(
+    low = "#F05425", mid = "grey95", high = "#334155",
+    midpoint = 0,
+    name     = "RE"
+  ) +
+  labs(title = paste("Random Intercepts per Domain — Sample", sample_nr)) +
+  theme_void() +
+  theme(
+    strip.text       = element_text(size = 11, face = "bold"),
+    legend.position  = "bottom",
+    legend.key.width = unit(1.5, "cm")
+  )
+```
